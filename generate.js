@@ -128,9 +128,12 @@ Monetization Score: ${ctx.score ?? '不明'}
 ${COMPANY_RULES}
 
 役割：社員E(DEVELOPER / 開発担当)
-目的：承認された企画のMVPとして実装すべき機能と技術構成を整理する(実際のコード生成ではなく開発計画メモ)。
-あわせて、Dが承認した企画がMVPを作るのに十分な情報を含んでいるか(仕様書・要件の不足がないか)を簡単にチェックする
-(仕様書14.4章に準ずる社員間監視)。
+目的：承認された企画のMVPを実際に検証できる、単一HTMLファイルの簡易プロトタイプコードを書く。
+CSS・JSも含めて1ファイルで完結させ、ブラウザで開けば core の機能(入力→処理→結果表示など、
+企画の中心的な価値が伝わる最小限の動き)を実際に触って確認できるようにすること。
+本番運用コードではなく検証用プロトタイプである旨を意識し、過度に複雑にしないこと。
+あわせて、Dが承認した企画がプロトタイプ実装に足る情報を含んでいるか(仕様書・要件の不足がないか)を
+簡単にチェックする(仕様書14.4章に準ずる社員間監視)。
 
 【アイデア】
 タイトル: ${ctx.title}
@@ -138,11 +141,12 @@ ${COMPANY_RULES}
 【企画メモ】
 ${ctx.planningNote || '(なし)'}
 
-次のJSON形式で出力してください。
+次のJSON形式で出力してください。code内の改行は \\n でエスケープすること。
 {
-  "note": "MVPとして実装すべき機能・技術構成・テスト方針のメモ(日本語、300字程度)",
+  "note": "実装したプロトタイプの説明・何を確認できるか(日本語、200字程度)",
+  "code": "<!doctype html>から始まる、動作する単一HTMLファイルのソースコード全体",
   "score": 0から100の整数(Code Quality見込みスコア),
-  "review": "承認された企画がMVP実装に足る情報を含んでいるかの簡単なチェックコメント(日本語、100字程度。不足があれば具体的に)"
+  "review": "承認された企画がプロトタイプ実装に足る情報を含んでいるかの簡単なチェックコメント(日本語、100字程度。不足があれば具体的に)"
 }
 `.trim(),
 
@@ -150,8 +154,8 @@ ${ctx.planningNote || '(なし)'}
 ${COMPANY_RULES}
 
 役割：社員F(SALES/MARKETER / 営業担当)
-目的：完成したツールの営業戦略とリード獲得方針を整理する(実際のSNS投稿・送信は行わない、文面案のみ)。
-大量無差別DM・スパム・規約違反を前提とした手法は提案しないこと。
+目的：完成したプロトタイプを使って、そのままコピーして使える営業素材を作る(実際のSNS投稿・DM送信は
+社員F自身は行わない。送信は必ず人間が行う。仕様書20章：大量無差別DM・スパム・bot化は絶対に禁止)。
 あわせて、Eの開発内容が実際に営業しやすい状態(訴求できる機能が明確か)かを簡単にチェックする。
 
 【アイデア】
@@ -163,7 +167,9 @@ ${ctx.developmentNote || '(なし)'}
 
 次のJSON形式で出力してください。
 {
-  "note": "ターゲット業界・訴求ポイント・アプローチ方法のメモ(日本語、300字程度)",
+  "note": "ターゲット業界・訴求ポイント・アプローチ方法のメモ(日本語、200字程度)",
+  "posts": ["SNS投稿文案1(120字以内、そのままコピーして使える完成形)", "SNS投稿文案2(切り口を変えたもの、120字以内)"],
+  "outreach": "見込み客への個別アプローチ文面テンプレート(DMやメールで使える完成形、200字程度。プレースホルダーは【会社名】のように書く)",
   "score": 0から100の整数(見込みLead/Appointment獲得スコア),
   "review": "開発内容が営業しやすい状態かの簡単なチェックコメント(日本語、100字程度)"
 }
@@ -183,7 +189,7 @@ async function callGemini(env, prompt) {
     },
     body: JSON.stringify({
       contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0.8 },
+      generationConfig: { temperature: 0.8, maxOutputTokens: 4096 },
     }),
   })
   if (!res.ok) {
@@ -205,12 +211,45 @@ async function callWorkersAI(env, prompt) {
   return text
 }
 
+// codeフィールドのような長い複数行テキストで、AIが改行のエスケープを忘れた場合の救済処理。
+// 文字列内(ダブルクォートの中)にある生の改行だけを \n に変換する。
+function repairJsonNewlines(text) {
+  let out = ''
+  let inString = false
+  let escaped = false
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i]
+    if (inString) {
+      if (escaped) { out += ch; escaped = false; continue }
+      if (ch === '\\') { out += ch; escaped = true; continue }
+      if (ch === '"') { inString = false; out += ch; continue }
+      if (ch === '\n') { out += '\\n'; continue }
+      if (ch === '\r') { continue }
+      if (ch === '\t') { out += '\\t'; continue }
+      out += ch
+    } else {
+      if (ch === '"') { inString = true; out += ch; continue }
+      out += ch
+    }
+  }
+  return out
+}
+
 function extractJson(text) {
   const cleaned = text.replace(/```json|```/g, '').trim()
   const start = cleaned.indexOf('{')
   const end = cleaned.lastIndexOf('}')
   if (start === -1 || end === -1) throw new Error('AIの出力からJSONを取り出せませんでした: ' + cleaned.slice(0, 200))
-  return JSON.parse(cleaned.slice(start, end + 1))
+  const jsonText = cleaned.slice(start, end + 1)
+  try {
+    return JSON.parse(jsonText)
+  } catch (e) {
+    try {
+      return JSON.parse(repairJsonNewlines(jsonText))
+    } catch {
+      throw new Error('AIの出力をJSONとして解析できませんでした: ' + e.message)
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
