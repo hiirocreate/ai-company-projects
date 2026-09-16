@@ -163,15 +163,17 @@ textarea, input, select { font-family: inherit; }
 <body>
 <div id="root"></div>
 
-<script type="text/babel" data-presets="react">s
+<script type="text/babel" data-presets="react">
 const { useState, useEffect, useCallback } = React;
 
 /* =========================================================
-   0. Supabase接続設定 ― ここを自分のプロジェクトの値に書き換えてください
-   Supabaseダッシュボード → Project Settings → API で確認できます
+   0. 接続設定 ― ここを自分の値に書き換えてください
+   ・Supabase: Project Settings → Data API(URL) / API Keys(キー)
+   ・API_BASE_URL: Cloudflare Workerをデプロイして発行されたURL(例 https://xxxx.yyyy.workers.dev)
 ========================================================= */
-const SUPABASE_URL = 'https://emliruckqsvlddzneczk.supabase.co/rest/v1/'
+const SUPABASE_URL = 'https://emliruckqsvlddzneczk.supabase.co'
 const SUPABASE_ANON_KEY = 'sb_publishable_7mi0OmqNKGTnYdGMtfs58Q_CYY_Qvt_'
+const API_BASE_URL = 'https://ai-company-projects.h-onoue-test.workers.dev'
 
 const supabaseConfigured =
   SUPABASE_URL.startsWith('http') && !SUPABASE_URL.includes('YOUR-PROJECT') &&
@@ -231,10 +233,13 @@ const nowIso = () => new Date().toISOString()
 const timeLabel = () => new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })
 
 /* =========================================================
-   3. Gemini下書き呼び出し(/api/generate ― Cloudflare Pages Function)
+   3. AI下書き呼び出し(独立したCloudflare Workerを叩く。Gemini→Workers AIの順にフォールバック)
 ========================================================= */
 async function callAI(employeeKey, ctx) {
-  const res = await fetch('/api/generate', {
+  if (API_BASE_URL.includes('YOUR-WORKER')) {
+    throw new Error('API_BASE_URLが未設定です(index.html冒頭のAPI_BASE_URLを、デプロイしたWorkerのURLに書き換えてください)')
+  }
+  const res = await fetch(API_BASE_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ employeeKey, ctx }),
