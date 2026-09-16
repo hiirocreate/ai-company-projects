@@ -96,12 +96,11 @@ textarea, input, select { font-family: inherit; }
 .employee-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 16px; box-shadow: var(--shadow-desk); text-align: left; display: flex; flex-direction: column; align-items: center; gap: 8px; transition: transform 0.12s ease, box-shadow 0.12s ease; border-top: 4px solid var(--emp-color, var(--line)); position: relative; }
 .employee-card:hover { transform: translateY(-2px); }
 .employee-card.working { box-shadow: 0 2px 0 rgba(38,36,51,0.06), 0 0 0 3px var(--emp-soft, var(--surface-tint)), 0 10px 24px -14px rgba(38, 36, 51, 0.25); }
-.char-stage { width: 100%; height: 108px; display: flex; justify-content: center; align-items: flex-end; position: relative; }
-.char-figure { width: 78px; height: 104px; position: relative; z-index: 1; }
+.char-stage { width: 100%; height: 180px; display: flex; justify-content: center; align-items: center; position: relative; }
+.char-figure { width: 170px; height: 170px; position: relative; z-index: 1; }
 .char-img { width: 100%; height: 100%; object-fit: contain; display: block; }
-.char-glow { position: absolute; bottom: 2px; left: 50%; width: 54px; height: 12px; transform: translateX(-50%) scale(0.9); border-radius: 50%; background: var(--emp-color); opacity: 0.12; }
-.char-stage.pulsing .char-glow { animation: char-pulse 1.6s ease-in-out infinite; }
-@keyframes char-pulse { 0%, 100% { opacity: 0.12; transform: translateX(-50%) scale(0.9); } 50% { opacity: 0.32; transform: translateX(-50%) scale(1.2); } }
+.char-stage.pulsing .char-figure { animation: char-pulse 1.6s ease-in-out infinite; }
+@keyframes char-pulse { 0%, 100% { filter: drop-shadow(0 0 0 transparent); } 50% { filter: drop-shadow(0 0 10px var(--emp-color)); } }
 .emp-info { text-align: center; }
 .emp-name { font-weight: 700; font-size: 15px; }
 .emp-role { font-size: 11px; color: var(--ink-soft); }
@@ -192,8 +191,8 @@ textarea, input, select { font-family: inherit; }
 
 @media (max-width: 420px) {
   .company-stats { gap: 10px; }
-  .char-stage { height: 88px; }
-  .char-figure { width: 64px; height: 84px; }
+  .char-stage { height: 130px; }
+  .char-figure { width: 122px; height: 122px; }
   .decision-grid { grid-template-columns: 1fr; }
 }
 </style>
@@ -590,7 +589,6 @@ function EmployeeCard({ employee, derived, linkedWith, onClick }) {
   return (
     <button className={`employee-card ${status === 'WORKING' ? 'working' : ''}`} style={{ '--emp-color': employee.color, '--emp-soft': employee.colorSoft }} onClick={onClick}>
       <div className={`char-stage ${status === 'WORKING' ? 'pulsing' : ''}`}>
-        <div className="char-glow" />
         <div className="char-figure"><CharacterFigure empKey={employee.key} /></div>
       </div>
       <div className="emp-info">
