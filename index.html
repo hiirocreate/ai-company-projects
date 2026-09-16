@@ -1,0 +1,717 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AI COMPANY</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Zen+Maru+Gothic:wght@400;500;700;900&display=swap"
+  rel="stylesheet"
+/>
+
+<!-- React / ReactDOM / Babel(ブラウザ内でJSXを変換) / Supabase — すべてCDN。npm/ビルド不要 -->
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<style>
+:root {
+  --ink: #262433;
+  --ink-soft: #6f6c80;
+  --bg: #eaf0f6;
+  --floor: #dfe8f1;
+  --surface: #ffffff;
+  --surface-tint: #f5f7fb;
+  --line: #d7dfea;
+  --line-strong: #b9c5d6;
+
+  --a-idea: #e8960c;
+  --a-idea-soft: #fdf1da;
+  --b-plan: #3f7fd1;
+  --b-plan-soft: #e2edfb;
+  --c-money: #1f9d6c;
+  --c-money-soft: #dff3e9;
+  --d-decision: #8656c9;
+  --d-decision-soft: #ede3fa;
+  --e-dev: #1fa39a;
+  --e-dev-soft: #dcf3f1;
+  --f-sales: #e2557f;
+  --f-sales-soft: #fbe3ea;
+
+  --good: #1f9d6c;
+  --warn: #e8960c;
+  --bad: #d9455f;
+
+  --radius-lg: 20px;
+  --radius-md: 14px;
+  --radius-sm: 9px;
+
+  --shadow-desk: 0 2px 0 rgba(38, 36, 51, 0.06), 0 10px 24px -14px rgba(38, 36, 51, 0.25);
+
+  --font-display: 'Baloo 2', 'Zen Maru Gothic', sans-serif;
+  --font-body: 'Zen Maru Gothic', 'Hiragino Maru Gothic ProN', sans-serif;
+}
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; }
+body {
+  margin: 0;
+  background: radial-gradient(1100px 500px at 12% -8%, #f4f8fc 0%, transparent 55%), var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+}
+button { font-family: inherit; cursor: pointer; }
+textarea, input, select { font-family: inherit; }
+
+.app-shell { max-width: 1180px; margin: 0 auto; padding: 20px 20px 64px; }
+
+.company-header {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-lg);
+  padding: 18px 26px; box-shadow: var(--shadow-desk); flex-wrap: wrap;
+}
+.company-title { display: flex; align-items: baseline; gap: 12px; }
+.company-title h1 { font-family: var(--font-display); font-weight: 800; font-size: 28px; letter-spacing: 0.02em; margin: 0; }
+.company-title .level-pill { font-family: var(--font-display); font-weight: 700; font-size: 13px; background: var(--d-decision-soft); color: var(--d-decision); border-radius: 999px; padding: 4px 12px; }
+.company-stats { display: flex; gap: 22px; flex-wrap: wrap; }
+.stat { text-align: right; }
+.stat .stat-value { font-family: var(--font-display); font-size: 20px; font-weight: 700; }
+.stat .stat-label { font-size: 12px; color: var(--ink-soft); }
+.health-bar-track { width: 90px; height: 6px; background: var(--line); border-radius: 999px; overflow: hidden; margin-top: 4px; }
+.health-bar-fill { height: 100%; background: var(--good); border-radius: 999px; }
+
+.office { margin-top: 20px; background: var(--floor); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 22px; position: relative; }
+.office-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.meeting-room { margin: 16px 0; background: var(--surface); border: 1px dashed var(--line-strong); border-radius: var(--radius-md); padding: 12px 18px; display: flex; align-items: center; gap: 10px; min-height: 44px; }
+.meeting-room .mr-label { font-family: var(--font-display); font-weight: 700; font-size: 12px; color: var(--ink-soft); letter-spacing: 0.04em; }
+.meeting-room .mr-msg { font-size: 14px; color: var(--ink); }
+
+.employee-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 16px; box-shadow: var(--shadow-desk); text-align: left; display: flex; flex-direction: column; gap: 10px; transition: transform 0.12s ease; border-top: 4px solid var(--emp-color, var(--line)); }
+.employee-card:hover { transform: translateY(-2px); }
+.employee-card .emp-top { display: flex; align-items: center; gap: 10px; }
+.emp-avatar { width: 44px; height: 44px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 22px; background: var(--emp-soft, var(--surface-tint)); flex-shrink: 0; }
+.emp-name { font-weight: 700; font-size: 15px; }
+.emp-role { font-size: 11px; color: var(--ink-soft); }
+.status-badge { align-self: flex-start; font-family: var(--font-display); font-size: 11px; font-weight: 700; letter-spacing: 0.04em; padding: 3px 10px; border-radius: 999px; background: var(--emp-soft, var(--surface-tint)); color: var(--emp-color, var(--ink-soft)); }
+.status-badge.idle { background: var(--surface-tint); color: var(--ink-soft); }
+.emp-task { font-size: 12.5px; color: var(--ink-soft); line-height: 1.5; min-height: 32px; }
+
+.btn { border: none; border-radius: var(--radius-sm); padding: 9px 16px; font-weight: 700; font-size: 13.5px; background: var(--surface-tint); color: var(--ink); }
+.btn-primary { background: var(--d-decision); color: white; }
+.btn-primary:hover { filter: brightness(1.05); }
+.btn-ghost { background: transparent; border: 1px solid var(--line-strong); }
+.btn-ai { background: var(--e-dev-soft); color: var(--e-dev); border: 1px solid var(--e-dev); }
+.btn-small { padding: 6px 12px; font-size: 12.5px; border-radius: 999px; }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.section-heading { display: flex; align-items: center; justify-content: space-between; margin: 30px 0 12px; flex-wrap: wrap; gap: 8px; }
+.section-heading h2 { font-family: var(--font-display); font-size: 18px; margin: 0; }
+
+.project-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 14px; }
+.project-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 16px; box-shadow: var(--shadow-desk); display: flex; flex-direction: column; gap: 10px; }
+.project-card .pc-id { font-size: 11px; color: var(--ink-soft); }
+.project-card h3 { margin: 0; font-size: 16px; }
+.stage-track { display: flex; gap: 3px; }
+.stage-seg { flex: 1; height: 7px; border-radius: 4px; background: var(--line); }
+.stage-seg.filled { background: var(--good); }
+.stage-seg.current { background: var(--warn); }
+.pc-meta { display: flex; justify-content: space-between; font-size: 12px; color: var(--ink-soft); }
+.pc-status-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+
+.empty-state { border: 1px dashed var(--line-strong); border-radius: var(--radius-md); padding: 26px; text-align: center; color: var(--ink-soft); font-size: 14px; background: var(--surface-tint); }
+
+.activity-log { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 14px 18px; max-height: 260px; overflow-y: auto; box-shadow: var(--shadow-desk); }
+.log-row { display: flex; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--surface-tint); font-size: 13px; }
+.log-row:last-child { border-bottom: none; }
+.log-time { color: var(--ink-soft); font-variant-numeric: tabular-nums; flex-shrink: 0; }
+.log-emp { font-weight: 700; flex-shrink: 0; width: 16px; }
+
+.modal-backdrop { position: fixed; inset: 0; background: rgba(38, 36, 51, 0.4); display: flex; align-items: center; justify-content: center; padding: 20px; z-index: 50; }
+.modal-card { background: var(--surface); border-radius: var(--radius-lg); padding: 24px; width: 100%; max-width: 460px; max-height: 88vh; overflow-y: auto; box-shadow: 0 30px 60px -20px rgba(38, 36, 51, 0.4); }
+.modal-card h2 { font-family: var(--font-display); margin: 0 0 4px; font-size: 19px; }
+.modal-sub { color: var(--ink-soft); font-size: 13px; margin-bottom: 16px; }
+.field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 14px; }
+.field label { font-size: 12.5px; font-weight: 700; color: var(--ink-soft); }
+.field input, .field textarea, .field select { border: 1px solid var(--line-strong); border-radius: var(--radius-sm); padding: 9px 11px; font-size: 13.5px; resize: vertical; background: var(--surface-tint); }
+.field textarea { min-height: 70px; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 6px; flex-wrap: wrap; }
+.ai-row { display: flex; justify-content: flex-start; margin-bottom: 14px; }
+.ai-error { font-size: 12px; color: var(--bad); margin-top: 6px; }
+
+.decision-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px; }
+.decision-opt { border: 1.5px solid var(--line-strong); border-radius: var(--radius-sm); padding: 9px; text-align: center; font-weight: 700; font-size: 12.5px; background: var(--surface-tint); }
+.decision-opt.selected.approved { border-color: var(--good); background: var(--c-money-soft); color: var(--good); }
+.decision-opt.selected.revision { border-color: var(--warn); background: var(--a-idea-soft); color: var(--warn); }
+.decision-opt.selected.hold { border-color: var(--ink-soft); background: var(--surface-tint); color: var(--ink-soft); }
+.decision-opt.selected.rejected { border-color: var(--bad); background: var(--f-sales-soft); color: var(--bad); }
+.checkbox-row { display: flex; align-items: center; gap: 8px; font-size: 13.5px; margin-bottom: 14px; }
+.archive-card { border-left: 3px solid var(--bad); }
+.reject-reason { font-size: 12.5px; background: var(--f-sales-soft); color: var(--bad); border-radius: var(--radius-sm); padding: 8px 10px; }
+.muted { color: var(--ink-soft); }
+.top-actions { display: flex; justify-content: flex-end; gap: 10px; }
+
+@media (max-width: 760px) {
+  .office-row { grid-template-columns: 1fr; }
+  .company-header { flex-direction: column; align-items: flex-start; }
+  .company-stats { justify-content: flex-start; }
+}
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" data-presets="react">s
+const { useState, useEffect, useCallback } = React;
+
+/* =========================================================
+   0. Supabase接続設定 ― ここを自分のプロジェクトの値に書き換えてください
+   Supabaseダッシュボード → Project Settings → API で確認できます
+========================================================= */
+const SUPABASE_URL = 'https://emliruckqsvlddzneczk.supabase.co/rest/v1/'
+const SUPABASE_ANON_KEY = 'sb_publishable_7mi0OmqNKGTnYdGMtfs58Q_CYY_Qvt_'
+
+const supabaseConfigured =
+  SUPABASE_URL.startsWith('http') && !SUPABASE_URL.includes('YOUR-PROJECT') &&
+  SUPABASE_ANON_KEY && !SUPABASE_ANON_KEY.includes('YOUR-ANON')
+
+const sb = supabaseConfigured ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null
+
+/* =========================================================
+   1. 社員マスターデータ(仕様書3〜23章)
+========================================================= */
+const STAGE_ORDER = ['IDEA', 'PLANNING', 'MONEY', 'APPROVAL', 'DEVELOPMENT', 'SALES']
+const STAGE_OWNER = { IDEA: 'A', PLANNING: 'B', MONEY: 'C', APPROVAL: 'D', DEVELOPMENT: 'E', SALES: 'F' }
+
+const EMPLOYEES = [
+  { key: 'A', name: '発案担当', roleEn: 'IDEA GENERATOR', icon: '💡', color: 'var(--a-idea)', colorSoft: 'var(--a-idea-soft)', workingLabel: 'THINKING', catchphrase: '新しいアイデアを探しています' },
+  { key: 'B', name: '企画担当', roleEn: 'PLANNER', icon: '📋', color: 'var(--b-plan)', colorSoft: 'var(--b-plan-soft)', workingLabel: 'PLANNING', catchphrase: '企画書を作成中' },
+  { key: 'C', name: 'マネタイズ担当', roleEn: 'MONETIZER', icon: '💰', color: 'var(--c-money)', colorSoft: 'var(--c-money-soft)', workingLabel: 'ANALYZING', catchphrase: '収益モデルを計算中' },
+  { key: 'D', name: '責任者', roleEn: 'EXECUTIVE / PM', icon: '👔', color: 'var(--d-decision)', colorSoft: 'var(--d-decision-soft)', workingLabel: 'REVIEWING', catchphrase: '開発する価値があるか検討中' },
+  { key: 'E', name: '開発担当', roleEn: 'DEVELOPER', icon: '💻', color: 'var(--e-dev)', colorSoft: 'var(--e-dev-soft)', workingLabel: 'CODING', catchphrase: 'ツールを開発しています' },
+  { key: 'F', name: '営業担当', roleEn: 'SALES / MARKETER', icon: '📱', color: 'var(--f-sales)', colorSoft: 'var(--f-sales-soft)', workingLabel: 'SELLING', catchphrase: '見込み客を探しています' },
+]
+const EMPLOYEE_MAP = Object.fromEntries(EMPLOYEES.map((e) => [e.key, e]))
+
+/* =========================================================
+   2. Supabase読み書きヘルパー
+========================================================= */
+function fromDbProject(row) {
+  return {
+    id: row.id, title: row.title, problem: row.problem, solution: row.solution,
+    target: row.target, source: row.source, stage: row.stage, decision: row.decision,
+    rejectReason: row.reject_reason || '', scores: row.scores || {}, notes: row.notes || {},
+    approvalHistory: row.approval_history || [], customerAcquired: !!row.customer_acquired,
+    createdAt: new Date(row.created_at).getTime(), updatedAt: new Date(row.updated_at).getTime(),
+  }
+}
+function fromDbLog(row) {
+  return {
+    id: `log-${row.id}`,
+    time: new Date(row.created_at).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }),
+    key: row.employee_key, message: row.message,
+  }
+}
+async function fetchAll() {
+  const [{ data: projectRows, error: pErr }, { data: logRows, error: lErr }] = await Promise.all([
+    sb.from('projects').select('*').order('created_at', { ascending: false }),
+    sb.from('activity_log').select('*').order('created_at', { ascending: false }).limit(200),
+  ])
+  if (pErr) throw pErr
+  if (lErr) throw lErr
+  return { projects: (projectRows || []).map(fromDbProject), activityLog: (logRows || []).map(fromDbLog) }
+}
+async function logActivity(employeeKey, message) {
+  const { error } = await sb.from('activity_log').insert({ employee_key: employeeKey, message })
+  if (error) throw error
+}
+const nowIso = () => new Date().toISOString()
+const timeLabel = () => new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })
+
+/* =========================================================
+   3. Gemini下書き呼び出し(/api/generate ― Cloudflare Pages Function)
+========================================================= */
+async function callAI(employeeKey, ctx) {
+  const res = await fetch('/api/generate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ employeeKey, ctx }),
+  })
+  const json = await res.json().catch(() => null)
+  if (!res.ok || !json || !json.ok) {
+    throw new Error((json && json.error) || `AI呼び出しに失敗しました(status ${res.status})`)
+  }
+  return { data: json.data, provider: json.provider }
+}
+const PROVIDER_LABEL = { gemini: 'Gemini', 'workers-ai': 'Cloudflare Workers AI(フォールバック)' }
+
+/* =========================================================
+   4. 状態管理フック(Supabase + Realtime)
+========================================================= */
+function useCompanyState() {
+  const [state, setState] = useState({ projects: [], activityLog: [], loading: true, error: null })
+
+  const refresh = useCallback(async () => {
+    try {
+      const data = await fetchAll()
+      setState((s) => ({ ...s, ...data, loading: false, error: null }))
+    } catch (e) {
+      setState((s) => ({ ...s, loading: false, error: e.message }))
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!supabaseConfigured) {
+      setState((s) => ({ ...s, loading: false, error: 'NOT_CONFIGURED' }))
+      return
+    }
+    refresh()
+    const channel = sb.channel('company-sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'projects' }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'activity_log' }, refresh)
+      .subscribe()
+    return () => sb.removeChannel(channel)
+  }, [refresh])
+
+  const dispatch = useCallback(async (action) => {
+    if (!supabaseConfigured) return
+    const { type, payload } = action
+    const findProject = (id) => state.projects.find((p) => p.id === id)
+    try {
+      if (type === 'ADD_IDEA') {
+        const id = `PRJ-${Date.now().toString(36).toUpperCase()}`
+        const { error } = await sb.from('projects').insert({
+          id, title: payload.title, problem: payload.problem, solution: payload.solution,
+          target: payload.target, source: payload.source || '未記入', stage: 'IDEA',
+        })
+        if (error) throw error
+        await logActivity('A', `新しいアイデアを提出「${payload.title}」（${id}）`)
+      } else if (type === 'ADVANCE_PLAN') {
+        const { projectId, note } = payload
+        const project = findProject(projectId)
+        const { error } = await sb.from('projects').update({ stage: 'PLANNING', notes: { ...project?.notes, planning: note }, updated_at: nowIso() }).eq('id', projectId)
+        if (error) throw error
+        await logActivity('B', `企画を完成させました（${project?.title ?? projectId}）`)
+      } else if (type === 'ADVANCE_MONEY') {
+        const { projectId, note, score } = payload
+        const project = findProject(projectId)
+        const { error } = await sb.from('projects').update({ stage: 'MONEY', notes: { ...project?.notes, money: note }, scores: { ...project?.scores, monetization: score }, updated_at: nowIso() }).eq('id', projectId)
+        if (error) throw error
+        await logActivity('C', `収益性を分析：Monetization Score ${score}（${project?.title ?? projectId}）`)
+      } else if (type === 'DECIDE') {
+        const { projectId, decision, reason } = payload
+        const project = findProject(projectId)
+        if (!project) return
+        const historyEntry = { decision, reason, time: timeLabel() }
+        let nextStage = project.stage
+        let log = ''
+        if (decision === 'APPROVED') { nextStage = 'DEVELOPMENT'; log = `APPROVED — 開発を開始します（${project.title}）` }
+        else if (decision === 'NEEDS_REVISION') { nextStage = 'PLANNING'; log = `NEEDS_REVISION — 企画工程へ差し戻し（${project.title}）：${reason}` }
+        else if (decision === 'HOLD') { nextStage = 'APPROVAL'; log = `HOLD — 現時点では保留（${project.title}）` }
+        else { nextStage = 'REJECTED'; log = `REJECTED（${project.title}）：${reason}` }
+        const { error } = await sb.from('projects').update({
+          stage: nextStage, decision: decision === 'REJECTED' ? null : decision,
+          reject_reason: decision === 'REJECTED' ? reason : project.rejectReason,
+          approval_history: [...project.approvalHistory, historyEntry], updated_at: nowIso(),
+        }).eq('id', projectId)
+        if (error) throw error
+        await logActivity('D', log)
+      } else if (type === 'ADVANCE_DEV') {
+        const { projectId, note, score } = payload
+        const project = findProject(projectId)
+        const { error } = await sb.from('projects').update({ stage: 'SALES', notes: { ...project?.notes, development: note }, scores: { ...project?.scores, development: score }, updated_at: nowIso() }).eq('id', projectId)
+        if (error) throw error
+        await logActivity('E', `開発が完了しました（${project?.title ?? projectId}）`)
+      } else if (type === 'ADVANCE_SALES') {
+        const { projectId, note, score, customerAcquired } = payload
+        const project = findProject(projectId)
+        const { error } = await sb.from('projects').update({ stage: 'COMPLETED', notes: { ...project?.notes, sales: note }, scores: { ...project?.scores, sales: score }, customer_acquired: !!customerAcquired, updated_at: nowIso() }).eq('id', projectId)
+        if (error) throw error
+        await logActivity('F', customerAcquired ? `🎉 CUSTOMER ACQUIRED（${project?.title ?? projectId}）` : `営業結果を記録しました（${project?.title ?? projectId}）`)
+      } else if (type === 'REOPEN') {
+        const { projectId } = payload
+        const project = findProject(projectId)
+        const { error } = await sb.from('projects').update({ stage: 'IDEA', decision: null, updated_at: nowIso() }).eq('id', projectId)
+        if (error) throw error
+        await logActivity('A', `過去に却下したアイデアを再評価します（${project?.title ?? projectId}）`)
+      }
+      refresh()
+    } catch (e) {
+      setState((s) => ({ ...s, error: e.message }))
+    }
+  }, [state.projects, refresh])
+
+  return { state, dispatch }
+}
+
+function deriveEmployeeState(projects, key) {
+  const stage = Object.keys(STAGE_OWNER).find((s) => STAGE_OWNER[s] === key)
+  const active = projects.find((p) => p.stage === stage)
+  if (active) return { status: 'WORKING', currentProject: active }
+  const blocked = projects.find((p) => key === 'D' && p.stage === 'APPROVAL' && p.decision === 'HOLD')
+  if (blocked) return { status: 'WAITING', currentProject: blocked }
+  return { status: 'IDLE', currentProject: null }
+}
+
+function computeCompanyStats(state) {
+  const { projects } = state
+  const counts = Object.fromEntries(STAGE_ORDER.map((s) => [s, 0]))
+  let completed = 0, rejected = 0, customers = 0, potentialRevenue = 0
+  for (const p of projects) {
+    if (p.stage === 'COMPLETED') { completed += 1; if (p.customerAcquired) customers += 1 }
+    else if (p.stage === 'REJECTED') rejected += 1
+    else if (counts[p.stage] !== undefined) counts[p.stage] += 1
+    if (p.scores?.monetization) potentialRevenue += p.scores.monetization * 3000
+  }
+  const health = Math.max(10, Math.min(100, 70 + completed * 6 + customers * 8 - rejected * 3))
+  const level = 1 + Math.floor(completed / 2) + customers
+  return { counts, completed, rejected, customers, potentialRevenue, health, level, total: projects.length }
+}
+
+/* =========================================================
+   5. UIコンポーネント
+========================================================= */
+const yen = (n) => `¥${Math.round(n).toLocaleString('ja-JP')}`
+
+function CompanyHeader({ state }) {
+  const stats = computeCompanyStats(state)
+  return (
+    <header className="company-header">
+      <div className="company-title">
+        <h1>AI COMPANY</h1>
+        <span className="level-pill">LEVEL {stats.level}</span>
+      </div>
+      <div className="company-stats">
+        <div className="stat"><div className="stat-value">{yen(stats.potentialRevenue)}</div><div className="stat-label">Revenue Potential</div></div>
+        <div className="stat"><div className="stat-value">{stats.total}</div><div className="stat-label">Projects</div></div>
+        <div className="stat"><div className="stat-value">{stats.customers}</div><div className="stat-label">Customers</div></div>
+        <div className="stat">
+          <div className="stat-value">{stats.health}</div><div className="stat-label">Company Health</div>
+          <div className="health-bar-track"><div className="health-bar-fill" style={{ width: `${stats.health}%` }} /></div>
+        </div>
+      </div>
+    </header>
+  )
+}
+
+function EmployeeCard({ employee, derived, onClick }) {
+  const { status, currentProject } = derived
+  const label = status === 'WORKING' ? employee.workingLabel : status
+  const task = currentProject ? `#${currentProject.id}「${currentProject.title}」を処理中` : employee.catchphrase
+  return (
+    <button className="employee-card" style={{ '--emp-color': employee.color, '--emp-soft': employee.colorSoft }} onClick={onClick}>
+      <div className="emp-top">
+        <div className="emp-avatar">{employee.icon}</div>
+        <div><div className="emp-name">{employee.name}</div><div className="emp-role">{employee.roleEn}</div></div>
+      </div>
+      <span className={`status-badge ${status === 'IDLE' ? 'idle' : ''}`}>{label}</span>
+      <div className="emp-task">{task}</div>
+    </button>
+  )
+}
+
+function OfficeScreen({ projects, onSelectEmployee }) {
+  const topRow = EMPLOYEES.slice(0, 3)
+  const bottomRow = EMPLOYEES.slice(3, 6)
+  const mostRecent = [...projects].sort((a, b) => b.updatedAt - a.updatedAt)[0]
+  return (
+    <section className="office">
+      <div className="office-row">
+        {topRow.map((emp) => <EmployeeCard key={emp.key} employee={emp} derived={deriveEmployeeState(projects, emp.key)} onClick={() => onSelectEmployee(emp.key)} />)}
+      </div>
+      <div className="meeting-room">
+        <span className="mr-label">MEETING ROOM</span>
+        <span className="mr-msg">{mostRecent ? `直近の動き：#${mostRecent.id}「${mostRecent.title}」— ${mostRecent.stage}` : 'まだ案件がありません。まずは社員Aにアイデアを登録してもらいましょう。'}</span>
+      </div>
+      <div className="office-row">
+        {bottomRow.map((emp) => <EmployeeCard key={emp.key} employee={emp} derived={deriveEmployeeState(projects, emp.key)} onClick={() => onSelectEmployee(emp.key)} />)}
+      </div>
+    </section>
+  )
+}
+
+function EmployeeDetailModal({ employee, projects, onClose }) {
+  const { status, currentProject } = deriveEmployeeState(projects, employee.key)
+  const label = status === 'WORKING' ? employee.workingLabel : status
+  const approvedCount = projects.filter((p) => p.decision === 'APPROVED').length
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+        <h2>{employee.icon} {employee.name}（{employee.key}）</h2>
+        <div className="modal-sub">{employee.roleEn}</div>
+        <div className="field"><label>Status</label><span className="status-badge" style={{ '--emp-color': employee.color, '--emp-soft': employee.colorSoft }}>{label}</span></div>
+        <div className="field"><label>Current Task</label><div>{currentProject ? `#${currentProject.id}「${currentProject.title}」` : employee.catchphrase}</div></div>
+        {employee.key === 'D' && <div className="field"><label>Approved so far</label><div>{approvedCount} 件</div></div>}
+        <div className="field">
+          <label>AI下書き機能</label>
+          <div className="muted">この社員の工程には「🤖 AIに下書きさせる」ボタンがあり、Gemini無料枠が下書きを作成します。内容は必ず確認してから記録してください。</div>
+        </div>
+        <div className="modal-actions"><button className="btn" onClick={onClose}>閉じる</button></div>
+      </div>
+    </div>
+  )
+}
+
+function ProjectCard({ project, onAdvance }) {
+  const currentIndex = STAGE_ORDER.indexOf(project.stage)
+  const isCompleted = project.stage === 'COMPLETED'
+  const isRejected = project.stage === 'REJECTED'
+  const NEXT_ACTION_LABEL = { IDEA: 'Bへ：企画を作成', PLANNING: 'Cへ：収益性を分析', MONEY: 'Dへ：承認判断', APPROVAL: 'Dへ：再判断', DEVELOPMENT: 'Eへ：開発完了を記録', SALES: 'Fへ：営業結果を記録' }
+  return (
+    <div className="project-card">
+      <div className="pc-id">{project.id}</div>
+      <h3>{project.title}</h3>
+      <div className="stage-track">
+        {STAGE_ORDER.map((s, i) => {
+          let cls = 'stage-seg'
+          if (isCompleted) cls += ' filled'
+          else if (i < currentIndex) cls += ' filled'
+          else if (i === currentIndex && !isRejected) cls += ' current'
+          return <div key={s} className={cls} />
+        })}
+      </div>
+      <div className="pc-meta"><span>{project.target}</span><span>{project.scores.monetization ? `Money ${project.scores.monetization}` : ''}</span></div>
+      <div className="pc-status-row">
+        <span className="muted" style={{ fontSize: 12 }}>{isCompleted ? (project.customerAcquired ? '🎉 顧客化しました' : 'COMPLETED') : isRejected ? 'REJECTED' : `STATUS: ${project.stage}`}</span>
+        {!isCompleted && !isRejected && <button className="btn btn-small btn-primary" onClick={() => onAdvance(project)}>{NEXT_ACTION_LABEL[project.stage]}</button>}
+      </div>
+    </div>
+  )
+}
+
+function ProjectPipeline({ projects, onAdvance }) {
+  const visible = projects.filter((p) => p.stage !== 'REJECTED')
+  if (visible.length === 0) return <div className="empty-state">まだプロジェクトがありません。「+ 新しいアイデアを登録」から始めてください。</div>
+  return <div className="project-grid">{visible.map((p) => <ProjectCard key={p.id} project={p} onAdvance={onAdvance} />)}</div>
+}
+
+function RejectedArchive({ projects, onReopen }) {
+  const rejected = projects.filter((p) => p.stage === 'REJECTED')
+  if (rejected.length === 0) return null
+  return (
+    <>
+      <div className="section-heading"><h2>却下アーカイブ</h2><span className="muted" style={{ fontSize: 12.5 }}>理由は保存され、状況が変われば再評価できます</span></div>
+      <div className="project-grid">
+        {rejected.map((p) => (
+          <div key={p.id} className="project-card archive-card">
+            <div className="pc-id">{p.id}</div>
+            <h3>{p.title}</h3>
+            <div className="reject-reason">{p.rejectReason || '理由未記録'}</div>
+            <div className="pc-status-row"><span className="muted" style={{ fontSize: 12 }}>REJECTED</span><button className="btn btn-small btn-ghost" onClick={() => onReopen(p.id)}>再評価する</button></div>
+          </div>
+        ))}
+      </div>
+    </>
+  )
+}
+
+function ActivityLog({ log }) {
+  return (
+    <div className="activity-log">
+      {log.map((entry) => {
+        const emp = entry.key ? EMPLOYEE_MAP[entry.key] : null
+        return (
+          <div className="log-row" key={entry.id}>
+            <span className="log-time">{entry.time}</span>
+            <span className="log-emp" style={{ color: emp?.color ?? 'var(--ink-soft)' }}>{entry.key ?? '•'}</span>
+            <span>{entry.message}</span>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function IdeaFormModal({ onSubmit, onClose }) {
+  const [form, setForm] = useState({ title: '', problem: '', target: '', solution: '', source: '' })
+  const [hint, setHint] = useState('')
+  const [aiLoading, setAiLoading] = useState(false)
+  const [aiError, setAiError] = useState('')
+  const [aiProvider, setAiProvider] = useState('')
+  const update = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }))
+  const canSubmit = form.title.trim() && form.problem.trim() && form.solution.trim()
+
+  const runAI = async () => {
+    setAiLoading(true); setAiError(''); setAiProvider('')
+    try {
+      const { data, provider } = await callAI('A', { hint })
+      setForm({ title: data.title || '', problem: data.problem || '', target: data.target || '', solution: data.solution || '', source: data.source || 'AI下書き' })
+      setAiProvider(provider)
+    } catch (e) { setAiError(e.message) } finally { setAiLoading(false) }
+  }
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+        <h2>💡 新しいアイデアを登録</h2>
+        <div className="modal-sub">Claude Webの出力を貼り付けるか、AIに下書きさせてください</div>
+        <div className="field"><label>ヒント(任意・業界や課題など)</label><input value={hint} onChange={(e) => setHint(e.target.value)} placeholder="例）美容室向け" /></div>
+        <div className="ai-row">
+          <button className="btn btn-ai" disabled={aiLoading} onClick={runAI}>{aiLoading ? '生成中…' : '🤖 AIに考えてもらう'}</button>
+        </div>
+        {aiError && <div className="ai-error">{aiError}</div>}
+        {aiProvider && <div className="muted" style={{ fontSize: 12, marginBottom: 10 }}>{PROVIDER_LABEL[aiProvider] || aiProvider}が下書きしました。内容を確認してください。</div>}
+        <div className="field"><label>アイデア名</label><input value={form.title} onChange={update('title')} placeholder="例）AI店舗予約アシスタント" /></div>
+        <div className="field"><label>解決する問題</label><textarea value={form.problem} onChange={update('problem')} /></div>
+        <div className="field"><label>対象ユーザー</label><input value={form.target} onChange={update('target')} placeholder="例）美容室・サロン経営者" /></div>
+        <div className="field"><label>提案する解決方法</label><textarea value={form.solution} onChange={update('solution')} /></div>
+        <div className="field"><label>発案理由・情報源(任意)</label><input value={form.source} onChange={update('source')} /></div>
+        <div className="modal-actions">
+          <button className="btn" onClick={onClose}>キャンセル</button>
+          <button className="btn btn-primary" disabled={!canSubmit} onClick={() => { onSubmit(form); onClose() }}>Bへ提出</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const DECISIONS = [
+  { key: 'APPROVED', label: 'APPROVED', cls: 'approved' },
+  { key: 'NEEDS_REVISION', label: 'NEEDS_REVISION', cls: 'revision' },
+  { key: 'HOLD', label: 'HOLD', cls: 'hold' },
+  { key: 'REJECTED', label: 'REJECTED', cls: 'rejected' },
+]
+
+function AdvanceModal({ project, dispatch, onClose }) {
+  const [note, setNote] = useState('')
+  const [score, setScore] = useState('')
+  const [decision, setDecision] = useState(null)
+  const [reason, setReason] = useState('')
+  const [customerAcquired, setCustomerAcquired] = useState(false)
+  const [aiLoading, setAiLoading] = useState(false)
+  const [aiError, setAiError] = useState('')
+  const [aiProvider, setAiProvider] = useState('')
+  const stage = project.stage
+
+  const runAI = async () => {
+    setAiLoading(true); setAiError(''); setAiProvider('')
+    try {
+      const ctx = {
+        title: project.title, problem: project.problem, target: project.target, solution: project.solution,
+        planningNote: project.notes.planning, moneyNote: project.notes.money, score: project.scores.monetization,
+      }
+      const employeeKey = stage === 'IDEA' ? 'B' : stage === 'PLANNING' ? 'C' : (stage === 'MONEY' || stage === 'APPROVAL') ? 'D' : stage === 'DEVELOPMENT' ? 'E' : 'F'
+      const { data, provider } = await callAI(employeeKey, ctx)
+      if (employeeKey === 'D') { setDecision(data.decision || null); setReason(data.reason || '') }
+      else { setNote(data.note || ''); if (data.score !== undefined) setScore(String(data.score)) }
+      setAiProvider(provider)
+    } catch (e) { setAiError(e.message) } finally { setAiLoading(false) }
+  }
+
+  const submit = () => {
+    if (stage === 'IDEA') dispatch({ type: 'ADVANCE_PLAN', payload: { projectId: project.id, note } })
+    else if (stage === 'PLANNING') dispatch({ type: 'ADVANCE_MONEY', payload: { projectId: project.id, note, score: Number(score) || 0 } })
+    else if (stage === 'MONEY' || stage === 'APPROVAL') dispatch({ type: 'DECIDE', payload: { projectId: project.id, decision, reason } })
+    else if (stage === 'DEVELOPMENT') dispatch({ type: 'ADVANCE_DEV', payload: { projectId: project.id, note, score: Number(score) || 0 } })
+    else if (stage === 'SALES') dispatch({ type: 'ADVANCE_SALES', payload: { projectId: project.id, note, score: Number(score) || 0, customerAcquired } })
+    onClose()
+  }
+
+  const decisionValid = (stage === 'MONEY' || stage === 'APPROVAL') ? decision && (decision !== 'REJECTED' && decision !== 'NEEDS_REVISION' ? true : reason.trim()) : true
+  const noteValid = ['IDEA', 'PLANNING', 'DEVELOPMENT', 'SALES'].includes(stage) ? note.trim() : true
+  const canSubmit = decisionValid && noteValid
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+        <h2>#{project.id}「{project.title}」</h2>
+
+        <div className="ai-row">
+          <button className="btn btn-ai" disabled={aiLoading} onClick={runAI}>{aiLoading ? '生成中…' : '🤖 AIに下書きさせる'}</button>
+        </div>
+        {aiError && <div className="ai-error">{aiError}</div>}
+        {aiProvider && <div className="muted" style={{ fontSize: 12, marginBottom: 10 }}>{PROVIDER_LABEL[aiProvider] || aiProvider}が下書きしました。内容を確認してから記録してください。</div>}
+
+        {stage === 'IDEA' && <div className="field"><label>企画メモ(Target/Solution/MVP/差別化など)</label><textarea value={note} onChange={(e) => setNote(e.target.value)} /></div>}
+
+        {stage === 'PLANNING' && (
+          <>
+            <div className="field"><label>収益モデル・検討メモ</label><textarea value={note} onChange={(e) => setNote(e.target.value)} /></div>
+            <div className="field"><label>Monetization Score(0〜100)</label><input type="number" min="0" max="100" value={score} onChange={(e) => setScore(e.target.value)} /></div>
+          </>
+        )}
+
+        {(stage === 'MONEY' || stage === 'APPROVAL') && (
+          <>
+            <div className="decision-grid">
+              {DECISIONS.map((d) => <button key={d.key} className={`decision-opt ${decision === d.key ? `selected ${d.cls}` : ''}`} onClick={() => setDecision(d.key)}>{d.label}</button>)}
+            </div>
+            <div className="field"><label>判断理由{decision === 'REJECTED' || decision === 'NEEDS_REVISION' ? '(必須)' : '(任意)'}</label><textarea value={reason} onChange={(e) => setReason(e.target.value)} /></div>
+          </>
+        )}
+
+        {stage === 'DEVELOPMENT' && (
+          <>
+            <div className="field"><label>開発メモ</label><textarea value={note} onChange={(e) => setNote(e.target.value)} /></div>
+            <div className="field"><label>Code Quality Score(任意)</label><input type="number" min="0" max="100" value={score} onChange={(e) => setScore(e.target.value)} /></div>
+          </>
+        )}
+
+        {stage === 'SALES' && (
+          <>
+            <div className="field"><label>営業結果メモ</label><textarea value={note} onChange={(e) => setNote(e.target.value)} /></div>
+            <div className="field"><label>Lead Score(任意)</label><input type="number" min="0" max="100" value={score} onChange={(e) => setScore(e.target.value)} /></div>
+            <label className="checkbox-row"><input type="checkbox" checked={customerAcquired} onChange={(e) => setCustomerAcquired(e.target.checked)} />契約・顧客化に至った</label>
+          </>
+        )}
+
+        <div className="modal-actions">
+          <button className="btn" onClick={onClose}>キャンセル</button>
+          <button className="btn btn-primary" disabled={!canSubmit} onClick={submit}>記録する</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* =========================================================
+   6. App
+========================================================= */
+function App() {
+  const { state, dispatch } = useCompanyState()
+  const [selectedEmployeeKey, setSelectedEmployeeKey] = useState(null)
+  const [showIdeaForm, setShowIdeaForm] = useState(false)
+  const [advanceProject, setAdvanceProject] = useState(null)
+  const selectedEmployee = EMPLOYEES.find((e) => e.key === selectedEmployeeKey)
+
+  if (state.error === 'NOT_CONFIGURED') {
+    return (
+      <div className="app-shell">
+        <div className="empty-state" style={{ marginTop: 40 }}>
+          <h2 style={{ marginTop: 0 }}>Supabaseの接続設定がありません</h2>
+          <p>この index.html の先頭付近にある <code>SUPABASE_URL</code> と <code>SUPABASE_ANON_KEY</code> を、
+          自分のSupabaseプロジェクトの値に書き換えてください。手順はREADME.mdを参照してください。</p>
+        </div>
+      </div>
+    )
+  }
+  if (state.loading) {
+    return <div className="app-shell"><div className="empty-state" style={{ marginTop: 40 }}>会社の状態を読み込んでいます…</div></div>
+  }
+
+  return (
+    <div className="app-shell">
+      {state.error && <div className="reject-reason" style={{ marginBottom: 14 }}>通信エラー：{state.error}</div>}
+      <CompanyHeader state={state} />
+      <OfficeScreen projects={state.projects} onSelectEmployee={setSelectedEmployeeKey} />
+      <div className="section-heading">
+        <h2>PROJECT PIPELINE</h2>
+        <div className="top-actions"><button className="btn btn-primary" onClick={() => setShowIdeaForm(true)}>+ 新しいアイデアを登録</button></div>
+      </div>
+      <ProjectPipeline projects={state.projects} onAdvance={setAdvanceProject} />
+      <RejectedArchive projects={state.projects} onReopen={(id) => dispatch({ type: 'REOPEN', payload: { projectId: id } })} />
+      <div className="section-heading"><h2>ACTIVITY LOG</h2></div>
+      <ActivityLog log={state.activityLog} />
+      {selectedEmployee && <EmployeeDetailModal employee={selectedEmployee} projects={state.projects} onClose={() => setSelectedEmployeeKey(null)} />}
+      {showIdeaForm && <IdeaFormModal onSubmit={(payload) => dispatch({ type: 'ADD_IDEA', payload })} onClose={() => setShowIdeaForm(false)} />}
+      {advanceProject && <AdvanceModal project={advanceProject} dispatch={dispatch} onClose={() => setAdvanceProject(null)} />}
+    </div>
+  )
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />)
+</script>
+</body>
+</html>
