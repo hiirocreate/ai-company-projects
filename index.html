@@ -66,13 +66,13 @@ body {
   min-height: 100vh;
 }
 .bg-balls { position: fixed; inset: 0; z-index: -1; pointer-events: none; overflow: hidden; }
-.bg-ball { position: absolute; border-radius: 50%; box-shadow: inset -12px -14px 0 rgba(0,0,0,0.12), 0 14px 24px rgba(38,36,51,0.18); }
-.bg-ball-1 { width: 100px; height: 100px; left: -140px; top: 10%; background: radial-gradient(circle at 32% 28%, #ffffffaa, transparent 45%), var(--a-idea); animation: cross-ltr 11s linear infinite; animation-delay: 0s; }
-.bg-ball-2 { width: 78px; height: 78px; right: -140px; top: 20%; background: radial-gradient(circle at 32% 28%, #ffffffaa, transparent 45%), var(--b-plan); animation: cross-rtl 13s linear infinite; animation-delay: -3s; }
-.bg-ball-3 { width: 116px; height: 116px; left: -140px; top: 52%; background: radial-gradient(circle at 32% 28%, #ffffffaa, transparent 45%), var(--c-money); animation: cross-ltr 12s linear infinite; animation-delay: -6s; }
-.bg-ball-4 { width: 66px; height: 66px; right: -140px; top: 64%; background: radial-gradient(circle at 32% 28%, #ffffffaa, transparent 45%), var(--d-decision); animation: cross-rtl 9.5s linear infinite; animation-delay: -1.5s; }
-.bg-ball-5 { width: 90px; height: 90px; left: -140px; top: 38%; background: radial-gradient(circle at 32% 28%, #ffffffaa, transparent 45%), var(--e-dev); animation: cross-ltr 14s linear infinite; animation-delay: -8s; }
-.bg-ball-6 { width: 84px; height: 84px; right: -140px; top: 78%; background: radial-gradient(circle at 32% 28%, #ffffffaa, transparent 45%), var(--f-sales); animation: cross-rtl 10.5s linear infinite; animation-delay: -4.5s; }
+.bg-ball { position: absolute; border-radius: 50%; }
+.bg-ball-1 { width: 100px; height: 100px; left: -140px; top: 10%; background: var(--a-idea); animation: cross-ltr 11s linear infinite; animation-delay: 0s; }
+.bg-ball-2 { width: 78px; height: 78px; right: -140px; top: 20%; background: var(--b-plan); animation: cross-rtl 13s linear infinite; animation-delay: -3s; }
+.bg-ball-3 { width: 116px; height: 116px; left: -140px; top: 52%; background: var(--c-money); animation: cross-ltr 12s linear infinite; animation-delay: -6s; }
+.bg-ball-4 { width: 66px; height: 66px; right: -140px; top: 64%; background: var(--d-decision); animation: cross-rtl 9.5s linear infinite; animation-delay: -1.5s; }
+.bg-ball-5 { width: 90px; height: 90px; left: -140px; top: 38%; background: var(--e-dev); animation: cross-ltr 14s linear infinite; animation-delay: -8s; }
+.bg-ball-6 { width: 84px; height: 84px; right: -140px; top: 78%; background: var(--f-sales); animation: cross-rtl 10.5s linear infinite; animation-delay: -4.5s; }
 @keyframes cross-ltr {
   0%   { transform: translateX(0) translateY(0) rotate(0deg); opacity: 0; }
   26%  { opacity: 0; }
@@ -176,6 +176,8 @@ textarea, input, select { font-family: inherit; }
 .project-card-clickable { cursor: pointer; transition: transform 0.12s ease; }
 .project-card-clickable:hover { transform: translateY(-2px); }
 .pc-detail-link { font-size: 11.5px; color: var(--d-decision); font-weight: 700; }
+.project-card.frozen { opacity: 0.72; background: #eef4f8; border-style: dashed; }
+.freeze-btn { align-self: flex-start; font-size: 11.5px; padding: 5px 10px; }
 .detail-text { font-size: 13px; color: var(--ink); line-height: 1.6; background: var(--surface-tint); border-radius: var(--radius-sm); padding: 9px 11px; white-space: pre-wrap; }
 .project-card .pc-id { font-size: 11px; color: var(--ink-soft); }
 .project-card h3 { margin: 0; font-size: 16px; }
@@ -518,6 +520,12 @@ function useCompanyState() {
         const { error } = await sb.from('projects').update({ stage: 'IDEA', decision: null, updated_at: nowIso() }).eq('id', projectId)
         if (error) throw error
         await logActivity('A', `過去に却下したアイデアを再評価します（${project?.title ?? projectId}）`)
+      } else if (type === 'TOGGLE_FREEZE') {
+        const { projectId, frozen } = payload
+        const project = findProject(projectId)
+        const { error } = await sb.from('projects').update({ notes: { ...project?.notes, frozen }, updated_at: nowIso() }).eq('id', projectId)
+        if (error) throw error
+        await logActivity(null, `${frozen ? '🧊 凍結しました' : '▶️ 再開しました'}（${project?.title ?? projectId}）`)
       }
       await refresh()
     } catch (e) {
@@ -859,15 +867,16 @@ function EmployeeDetailModal({ employee, projects, onClose }) {
   )
 }
 
-function ProjectCard({ project, onAdvance, onViewDetail, autoMode }) {
+function ProjectCard({ project, onAdvance, onViewDetail, onToggleFreeze, autoMode }) {
   const currentIndex = STAGE_ORDER.indexOf(project.stage)
   const isCompleted = project.stage === 'COMPLETED'
   const isRejected = project.stage === 'REJECTED'
   const isHold = project.stage === 'APPROVAL' && project.decision === 'HOLD'
-  const showManualButton = !isCompleted && !isRejected && (!autoMode || isHold)
+  const isFrozen = !!project.notes?.frozen
+  const showManualButton = !isCompleted && !isRejected && !isFrozen && (!autoMode || isHold)
   const NEXT_ACTION_LABEL = { IDEA: 'Bへ：企画を作成', PLANNING: 'Cへ：収益性を分析', MONEY: 'Dへ：承認判断', APPROVAL: 'Dへ：再判断', DEVELOPMENT: 'Eへ：開発完了を記録', SALES: 'Fへ：営業結果を記録' }
   return (
-    <div className="project-card project-card-clickable" onClick={() => onViewDetail(project)}>
+    <div className={`project-card project-card-clickable ${isFrozen ? 'frozen' : ''}`} onClick={() => onViewDetail(project)}>
       <div className="pc-id">{project.id}</div>
       <h3>{project.title}</h3>
       <div className="stage-track">
@@ -881,19 +890,24 @@ function ProjectCard({ project, onAdvance, onViewDetail, autoMode }) {
       </div>
       <div className="pc-meta"><span>{project.target}</span><span>{project.scores.monetization ? `Money ${project.scores.monetization}` : ''}</span></div>
       <div className="pc-status-row">
-        <span className="muted" style={{ fontSize: 12 }}>{isCompleted ? (project.customerAcquired ? '🎉 顧客化しました' : 'COMPLETED') : isRejected ? 'REJECTED' : `STATUS: ${project.stage}`}</span>
+        <span className="muted" style={{ fontSize: 12 }}>{isFrozen ? '🧊 凍結中' : isCompleted ? (project.customerAcquired ? '🎉 顧客化しました' : 'COMPLETED') : isRejected ? 'REJECTED' : `STATUS: ${project.stage}`}</span>
         {showManualButton && <button className="btn btn-small btn-primary" onClick={(e) => { e.stopPropagation(); onAdvance(project) }}>{NEXT_ACTION_LABEL[project.stage]}</button>}
-        {!isCompleted && !isRejected && autoMode && !isHold && <span className="auto-badge">🤖 自動処理中…</span>}
+        {!isCompleted && !isRejected && !isFrozen && autoMode && !isHold && <span className="auto-badge">🤖 自動処理中…</span>}
       </div>
+      {!isCompleted && !isRejected && (
+        <button className="btn btn-small btn-ghost freeze-btn" onClick={(e) => { e.stopPropagation(); onToggleFreeze(project.id, !isFrozen) }}>
+          {isFrozen ? '▶️ 再開する' : '🧊 凍結する'}
+        </button>
+      )}
       <div className="pc-detail-link">📄 詳細・出力内容を見る</div>
     </div>
   )
 }
 
-function ProjectPipeline({ projects, onAdvance, onViewDetail, autoMode }) {
+function ProjectPipeline({ projects, onAdvance, onViewDetail, onToggleFreeze, autoMode }) {
   const visible = projects.filter((p) => p.stage !== 'REJECTED')
   if (visible.length === 0) return <div className="empty-state">まだプロジェクトがありません。「+ 新しいアイデアを登録」から始めてください。</div>
-  return <div className="project-grid">{visible.map((p) => <ProjectCard key={p.id} project={p} onAdvance={onAdvance} onViewDetail={onViewDetail} autoMode={autoMode} />)}</div>
+  return <div className="project-grid">{visible.map((p) => <ProjectCard key={p.id} project={p} onAdvance={onAdvance} onViewDetail={onViewDetail} onToggleFreeze={onToggleFreeze} autoMode={autoMode} />)}</div>
 }
 
 function RejectedArchive({ projects, onReopen, onViewDetail }) {
@@ -1045,15 +1059,24 @@ const DECISIONS = [
   { key: 'REJECTED', label: 'REJECTED', cls: 'rejected' },
 ]
 
-function ProjectDetailModal({ project, onClose }) {
+function ProjectDetailModal({ project, dispatch, onClose }) {
   const notes = project.notes || {}
   const reviews = notes.reviews || {}
   const posts = Array.isArray(notes.posts) ? notes.posts.filter(Boolean) : []
+  const isFrozen = !!notes.frozen
+  const canFreeze = project.stage !== 'COMPLETED' && project.stage !== 'REJECTED'
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal-card" onClick={(e) => e.stopPropagation()}>
         <h2>#{project.id}「{project.title}」</h2>
-        <div className="modal-sub">STATUS: {project.stage}{project.customerAcquired ? ' ・ 🎉 顧客化済み' : ''}</div>
+        <div className="modal-sub">STATUS: {isFrozen ? '🧊 凍結中 ・ ' : ''}{project.stage}{project.customerAcquired ? ' ・ 🎉 顧客化済み' : ''}</div>
+        {canFreeze && (
+          <div className="ai-row">
+            <button className="btn btn-small btn-ghost" onClick={() => dispatch({ type: 'TOGGLE_FREEZE', payload: { projectId: project.id, frozen: !isFrozen } })}>
+              {isFrozen ? '▶️ 再開する' : '🧊 凍結する'}
+            </button>
+          </div>
+        )}
 
         <div className="field"><label>💡 解決する問題 / 対象ユーザー / 解決方法(A)</label>
           <div className="detail-text">{`${project.problem}\n対象：${project.target}\n方法：${project.solution}`}</div>
@@ -1272,6 +1295,7 @@ function App() {
       for (const project of state.projects) {
         if (project.stage === 'COMPLETED' || project.stage === 'REJECTED') continue
         if (project.stage === 'APPROVAL' && project.decision === 'HOLD') continue // HOLDは人による確認待ちのまま
+        if (project.notes?.frozen) continue // 凍結中はAIを一切呼ばない
         if (autoProcessingRef.current.has(project.id)) continue
         autoProcessingRef.current.add(project.id)
         autoAdvanceProject(project, dispatch)
@@ -1325,7 +1349,7 @@ function App() {
             <h2>PROJECT PIPELINE</h2>
             <div className="top-actions"><button className="btn btn-primary" onClick={() => setShowIdeaForm(true)}>+ 新しいアイデアを登録</button></div>
           </div>
-          <ProjectPipeline projects={state.projects} onAdvance={setAdvanceProject} onViewDetail={setDetailProject} autoMode={autoMode} />
+          <ProjectPipeline projects={state.projects} onAdvance={setAdvanceProject} onViewDetail={setDetailProject} onToggleFreeze={(id, frozen) => dispatch({ type: 'TOGGLE_FREEZE', payload: { projectId: id, frozen } })} autoMode={autoMode} />
           <RejectedArchive projects={state.projects} onReopen={(id) => dispatch({ type: 'REOPEN', payload: { projectId: id } })} onViewDetail={setDetailProject} />
         </>
       )}
@@ -1340,7 +1364,7 @@ function App() {
       {selectedEmployee && <EmployeeDetailModal employee={selectedEmployee} projects={state.projects} onClose={() => setSelectedEmployeeKey(null)} />}
       {showIdeaForm && <IdeaFormModal onSubmit={(payload) => dispatch({ type: 'ADD_IDEA', payload })} onClose={() => setShowIdeaForm(false)} />}
       {advanceProject && <AdvanceModal project={advanceProject} dispatch={dispatch} onClose={() => setAdvanceProject(null)} />}
-      {detailProject && <ProjectDetailModal project={detailProject} onClose={() => setDetailProject(null)} />}
+      {detailProject && <ProjectDetailModal project={detailProject} dispatch={dispatch} onClose={() => setDetailProject(null)} />}
       {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
     </div>
   )
