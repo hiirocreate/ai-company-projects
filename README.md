@@ -23,7 +23,9 @@ Geminiがレート制限などで使えないときは、**Cloudflare Workers AI
 
 ```
 ai-company-web/
-├── index.html              # 静的サイト本体(Cloudflare Pagesにアップロードする)
+├── index.html              # 静的サイト本体(GitHub経由でCloudflareにデプロイする)
+├── wrangler.jsonc          # 静的サイト用Workerのビルド設定(GitHubにアップロードする)
+├── site-worker.js          # 静的サイトにBasic認証をかけるWorker(GitHubにアップロードする)
 ├── worker/
 │   └── generate.js         # AI呼び出し用Worker(Cloudflareのコードエディタに貼り付ける。アップロード不要)
 └── supabase/
@@ -112,21 +114,29 @@ Geminiのキーはここには書きません(手順3-5でWorker側にだけ設�
 - SUPABASE_ANON_KEY(Publishable key)はindex.htmlの中に直接書きます(ブラウザから見える状態に
   なりますが、この鍵はもともと公開される前提のもので、実際のアクセス制御は`schema.sql`で設定した
   Row Level Securityが担っています)。
-- Worker側のCORS設定は現状「どのサイトからでも呼び出せる」(`Access-Control-Allow-Origin: *`)に
-  なっています。他人に`API_BASE_URL`を知られると、その人もこのWorker経由でGemini/Workers AIの
-  無料枠を使えてしまうため、気になる場合は`worker/generate.js`内の`CORS_HEADERS`を自分の
-  pages.devドメインだけに絞ることをおすすめします。
-- 現状サイト自体にログイン機能はないため、公開URLを知っていれば誰でも閲覧・編集できます。
-  社外に共有する前にCloudflare Access(無料枠あり)でサイト自体にログインを掛けることを推奨します
-  (Cloudflareダッシュボード → Zero Trust → Access → Applications)。
+- **サイト全体にログイン(Basic認証)を追加しました。** 静的サイト用Worker(`site-worker.js`)の
+  Settings → Variables and Secrets で `SITE_PASSWORD`(必須)と `SITE_USER`(任意、未設定なら
+  `admin`)を設定すると、ブラウザで開いたときにユーザー名とパスワードを求められるようになります。
+  設定しなければ今まで通り誰でも開けます。
+- **API用Workerにも共有シークレットを追加できます。** API用Worker(`generate.js`をデプロイした
+  ほう)のSettings → Variables and Secretsで `API_SHARED_SECRET` を設定し、index.html冒頭の
+  `API_SHARED_SECRET` を同じ値に書き換えると、このシークレットを知らない相手からのAI呼び出しを
+  拒否するようになります(ブラウザのソースに書く値なので、サイト自体にBasic認証がかかっていない
+  状態だと完全な秘密にはなりません。上記のBasic認証と合わせて使うのがおすすめです)。
+- **CORSも制限できます。** API用WorkerのSettings → Variables and Secretsで `ALLOWED_ORIGIN` に
+  自分のpages.dev URL(例: `https://ai-company-projects.pages.dev`)を設定すると、他のサイトから
+  このAPIを呼び出せなくなります。未設定なら今まで通りどこからでも呼べます。
+- ここまで設定すると、「サイトはパスワードでロック」「APIも合言葉がないと呼べない」「APIは自分の
+  サイトからしか呼べない」の3段構えになります。とはいえBasic認証は簡易的なものなので、より本格的な
+  認証が必要な場合はCloudflare Access(無料枠あり)の併用も検討してください。
 
 ## 他の無料AI APIを併用したい場合
 
-`worker/generate.js` は、まずGeminiを試し、失敗した場合は自動的にCloudflare Workers AIに
-フォールバックします。さらに別の無料API(Groq・Mistral・OpenRouterなど)を追加したい場合は、
-`callGemini` / `callWorkersAI` と同じ形の関数を追加し、`fetch` ハンドラ内のフォールバックの
-連鎖にもう1段追加するだけで拡張できます。どのサービスを使いたいか、また特定の社員だけ別サービスに
-したい等の希望があれば教えてください。
+`worker/generate.js` は `PROVIDERS` という配列で使用するAPIを管理しています。まずGeminiを試し、
+失敗したら次のプロバイダーへ自動的にフォールバックします。新しいAPI(Groq・Mistral・OpenRouterなど)
+を追加したい場合は、`callGemini` と同じ形の関数(`async function callXxx(env, prompt) { ... }`)を
+書いて、`PROVIDERS` 配列に `{ name: 'xxx', call: callXxx }` を1行足すだけで組み込めます。
+どのサービスを使いたいか、また特定の社員だけ別サービスにしたい等の希望があれば教えてください。
 
 ## 前回のVite版について
 
