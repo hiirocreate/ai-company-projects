@@ -163,7 +163,7 @@ textarea, input, select { font-family: inherit; }
 <body>
 <div id="root"></div>
 
-<script type="text/babel" data-presets="react">
+<script type="text/plain" id="app-source">
 const { useState, useEffect, useCallback } = React;
 
 /* =========================================================
@@ -717,6 +717,17 @@ function App() {
 }
 
 ReactDOM.createRoot(document.getElementById('root')).render(<App />)
+</script>
+<script>
+  // Babel標準の自動スキャン(type="text/babel")は使わない。最新のBabelはデフォルトで
+  // "automatic" JSXランタイムを使い、react/jsx-runtimeをimportするコードを生成するが、
+  // このページはReactをUMD(グローバル変数)で読み込んでいるためimportが使えず壊れる。
+  // そのため手動でBabel.transformを呼び、runtime:'classic'(React.createElementを使う方式)を指定する。
+  var __src = document.getElementById('app-source').textContent
+  var __out = Babel.transform(__src, { presets: [['react', { runtime: 'classic' }]] }).code
+  var __script = document.createElement('script')
+  __script.text = __out
+  document.body.appendChild(__script)
 </script>
 </body>
 </html>
