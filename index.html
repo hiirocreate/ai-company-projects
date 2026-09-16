@@ -388,7 +388,7 @@ async function callAI(employeeKey, ctx) {
   }
   return { data: json.data, provider: json.provider }
 }
-const PROVIDER_LABEL = { gemini: 'Gemini', 'workers-ai': 'Cloudflare Workers AI(フォールバック)' }
+const PROVIDER_LABEL = { gemini: 'Gemini', groq: 'Groq', mistral: 'Mistral(Codestral)', 'workers-ai': 'Cloudflare Workers AI(フォールバック)' }
 
 /* =========================================================
    3.5 自動パイプライン(🤖自動モードON時、AIの下書きをそのまま採用して次工程へ進める)
