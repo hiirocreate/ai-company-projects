@@ -98,6 +98,7 @@ textarea, input, select { font-family: inherit; }
 .employee-card.working { box-shadow: 0 2px 0 rgba(38,36,51,0.06), 0 0 0 3px var(--emp-soft, var(--surface-tint)), 0 10px 24px -14px rgba(38, 36, 51, 0.25); }
 .char-stage { width: 100%; height: 108px; display: flex; justify-content: center; align-items: flex-end; position: relative; }
 .char-figure { width: 78px; height: 104px; position: relative; z-index: 1; }
+.char-img { width: 100%; height: 100%; object-fit: contain; display: block; }
 .char-glow { position: absolute; bottom: 2px; left: 50%; width: 54px; height: 12px; transform: translateX(-50%) scale(0.9); border-radius: 50%; background: var(--emp-color); opacity: 0.12; }
 .char-stage.pulsing .char-glow { animation: char-pulse 1.6s ease-in-out infinite; }
 @keyframes char-pulse { 0%, 100% { opacity: 0.12; transform: translateX(-50%) scale(0.9); } 50% { opacity: 0.32; transform: translateX(-50%) scale(1.2); } }
@@ -470,7 +471,17 @@ function getUpstreamEmployee(key) {
 
 // 各社員のちびキャラクター(オリジナルデザイン。仕様書23章の持ち物設定に対応)
 // 頭が大きく体が小さい「ちびキャラ」プロポーションの、立ち姿イラスト。
+// 画像(characters/a.png 等)があればそれを表示し、無ければ簡易SVGにフォールバックする
 function CharacterFigure({ empKey }) {
+  const [imgFailed, setImgFailed] = useState(false)
+  const src = `characters/${empKey.toLowerCase()}.png`
+  if (!imgFailed) {
+    return <img className="char-img" src={src} alt={`${empKey}のキャラクター`} onError={() => setImgFailed(true)} />
+  }
+  return <SvgCharacterFallback empKey={empKey} />
+}
+
+function SvgCharacterFallback({ empKey }) {
   const base = (
     <>
       {/* 足 */}
