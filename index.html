@@ -164,6 +164,7 @@ textarea, input, select { font-family: inherit; }
 .btn-primary { background: var(--d-decision); color: white; }
 .btn-primary:hover { filter: brightness(1.05); }
 .btn-ghost { background: transparent; border: 1px solid var(--line-strong); }
+.btn-danger { color: var(--bad); border-color: var(--bad); }
 .btn-ai { background: var(--e-dev-soft); color: var(--e-dev); border: 1px solid var(--e-dev); }
 .btn-small { padding: 6px 12px; font-size: 12.5px; border-radius: 999px; }
 .btn:disabled { opacity: 0.45; cursor: not-allowed; }
@@ -526,6 +527,12 @@ function useCompanyState() {
         const { error } = await sb.from('projects').update({ notes: { ...project?.notes, frozen }, updated_at: nowIso() }).eq('id', projectId)
         if (error) throw error
         await logActivity(null, `${frozen ? '🧊 凍結しました' : '▶️ 再開しました'}（${project?.title ?? projectId}）`)
+      } else if (type === 'DELETE_PROJECT') {
+        const { projectId } = payload
+        const project = findProject(projectId)
+        const { error } = await sb.from('projects').delete().eq('id', projectId)
+        if (error) throw error
+        await logActivity(null, `🗑 プロジェクトを削除しました（${project?.title ?? projectId}）`)
       }
       await refresh()
     } catch (e) {
@@ -974,7 +981,7 @@ function SettingsModal({ onClose }) {
   }
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
+    <div className="modal-backdrop">
       <div className="modal-card" onClick={(e) => e.stopPropagation()}>
         <h2>⚙️ 詳細設定</h2>
         <div className="modal-sub">
@@ -1014,7 +1021,7 @@ function IdeaFormModal({ onSubmit, onClose }) {
   }
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
+    <div className="modal-backdrop">
       <div className="modal-card" onClick={(e) => e.stopPropagation()}>
         <h2>💡 新しいアイデアを登録</h2>
         <div className="modal-sub">Claude Webの出力を貼り付けるか、AIに下書きさせてください</div>
@@ -1132,7 +1139,20 @@ function ProjectDetailModal({ project, dispatch, onClose }) {
         )}
         {reviews.F && <div className="review-box">🔍 Fによる確認：{reviews.F}</div>}
 
-        <div className="modal-actions"><button className="btn" onClick={onClose}>閉じる</button></div>
+        <div className="modal-actions">
+          <button
+            className="btn btn-ghost btn-danger"
+            onClick={() => {
+              if (window.confirm(`「${project.title}」を完全に削除します。この操作は元に戻せません。よろしいですか？`)) {
+                dispatch({ type: 'DELETE_PROJECT', payload: { projectId: project.id } })
+                onClose()
+              }
+            }}
+          >
+            🗑 削除する
+          </button>
+          <button className="btn" onClick={onClose}>閉じる</button>
+        </div>
       </div>
     </div>
   )
@@ -1205,7 +1225,7 @@ function AdvanceModal({ project, dispatch, onClose }) {
   const REVIEW_LABEL = { IDEA: 'Bによる確認(Aのアイデアをチェック)', PLANNING: 'Cによる確認(Bの企画をチェック)', DEVELOPMENT: 'Eによる確認(Dの承認内容をチェック)', SALES: 'Fによる確認(Eの開発内容をチェック)' }
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
+    <div className="modal-backdrop">
       <div className="modal-card" onClick={(e) => e.stopPropagation()}>
         <h2>#{project.id}「{project.title}」</h2>
 
