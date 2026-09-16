@@ -161,11 +161,35 @@ textarea, input, select { font-family: inherit; }
 .reject-reason { font-size: 12.5px; background: var(--f-sales-soft); color: var(--bad); border-radius: var(--radius-sm); padding: 8px 10px; }
 .muted { color: var(--ink-soft); }
 .top-actions { display: flex; justify-content: flex-end; gap: 10px; }
+.emp-task, .mr-msg, .log-row span:last-child, .project-card h3, .reject-reason, .review-box, .modal-card h2 { overflow-wrap: break-word; word-break: break-word; }
 
 @media (max-width: 760px) {
+  .app-shell { padding: 14px 14px 48px; }
+  .office { padding: 16px; }
   .office-row { grid-template-columns: 1fr; }
-  .company-header { flex-direction: column; align-items: flex-start; }
-  .company-stats { justify-content: flex-start; }
+  .company-header { flex-direction: column; align-items: flex-start; padding: 16px 18px; }
+  .company-title h1 { font-size: 22px; }
+  .company-stats { width: 100%; display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+  .stat { text-align: left; }
+  .health-bar-track { width: 100%; }
+  .project-grid { grid-template-columns: 1fr; }
+  .section-heading { flex-direction: column; align-items: stretch; }
+  .top-actions, .top-actions .btn { width: 100%; }
+  .ai-row, .ai-row .btn { width: 100%; }
+  .modal-backdrop { padding: 0; align-items: flex-end; }
+  .modal-card { padding: 18px; max-width: 100%; max-height: 92vh; border-radius: var(--radius-lg) var(--radius-lg) 0 0; }
+  .field input, .field textarea, .field select { font-size: 16px; } /* iOSでフォーカス時に勝手に拡大されるのを防ぐ */
+  .btn { padding: 11px 16px; }
+  .modal-actions { flex-direction: column; }
+  .modal-actions .btn { width: 100%; }
+  .checkbox-row input[type="checkbox"] { width: 18px; height: 18px; }
+  .handoff { flex-wrap: wrap; }
+}
+
+@media (max-width: 420px) {
+  .company-stats { gap: 10px; }
+  .emp-avatar { width: 48px; height: 48px; font-size: 24px; }
+  .decision-grid { grid-template-columns: 1fr; }
 }
 </style>
 </head>
