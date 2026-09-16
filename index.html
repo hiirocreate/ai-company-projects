@@ -78,6 +78,9 @@ textarea, input, select { font-family: inherit; }
 .company-title .level-pill { font-family: var(--font-display); font-weight: 700; font-size: 13px; background: var(--d-decision-soft); color: var(--d-decision); border-radius: 999px; padding: 4px 12px; }
 .company-stats { display: flex; align-items: center; gap: 22px; flex-wrap: wrap; }
 .settings-btn { font-size: 12.5px; padding: 7px 12px; align-self: center; }
+.tab-bar { display: flex; gap: 8px; margin: 14px 0; position: sticky; top: 0; z-index: 20; background: var(--bg); padding: 6px 0; }
+.tab-btn { flex: 1; border: 1px solid var(--line); background: var(--surface); border-radius: var(--radius-md); padding: 10px 12px; font-family: var(--font-display); font-weight: 700; font-size: 13px; color: var(--ink-soft); box-shadow: var(--shadow-desk); }
+.tab-btn.active { background: var(--d-decision); color: #fff; border-color: var(--d-decision); }
 .stat { text-align: right; }
 .stat .stat-value { font-family: var(--font-display); font-size: 20px; font-weight: 700; }
 .stat .stat-label { font-size: 12px; color: var(--ink-soft); }
@@ -93,22 +96,23 @@ textarea, input, select { font-family: inherit; }
 .handoff .mini-avatar { width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
 .handoff .arrow { color: var(--ink-soft); font-size: 16px; }
 
-.employee-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 16px; box-shadow: var(--shadow-desk); text-align: left; display: flex; flex-direction: column; align-items: center; gap: 8px; transition: transform 0.12s ease, box-shadow 0.12s ease; border-top: 4px solid var(--emp-color, var(--line)); position: relative; }
+.employee-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 12px; box-shadow: var(--shadow-desk); text-align: left; display: flex; flex-direction: row; align-items: center; gap: 12px; transition: transform 0.12s ease, box-shadow 0.12s ease; border-top: 4px solid var(--emp-color, var(--line)); position: relative; }
 .employee-card:hover { transform: translateY(-2px); }
 .employee-card.working { box-shadow: 0 2px 0 rgba(38,36,51,0.06), 0 0 0 3px var(--emp-soft, var(--surface-tint)), 0 10px 24px -14px rgba(38, 36, 51, 0.25); }
-.char-stage { width: 100%; height: 180px; display: flex; justify-content: center; align-items: center; position: relative; }
-.char-figure { width: 170px; height: 170px; position: relative; z-index: 1; }
+.char-stage { width: 108px; height: 108px; flex-shrink: 0; display: flex; justify-content: center; align-items: center; position: relative; }
+.char-figure { width: 108px; height: 108px; position: relative; z-index: 1; }
 .char-img { width: 100%; height: 100%; object-fit: contain; display: block; }
 .char-stage.pulsing .char-figure { animation: char-pulse 1.6s ease-in-out infinite; }
 @keyframes char-pulse { 0%, 100% { filter: drop-shadow(0 0 0 transparent); } 50% { filter: drop-shadow(0 0 10px var(--emp-color)); } }
-.emp-info { text-align: center; }
+.emp-body { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.emp-info { text-align: left; }
 .emp-name { font-weight: 700; font-size: 15px; }
 .emp-role { font-size: 11px; color: var(--ink-soft); }
-.status-badge { align-self: center; font-family: var(--font-display); font-size: 11px; font-weight: 700; letter-spacing: 0.04em; padding: 3px 10px; border-radius: 999px; background: var(--emp-soft, var(--surface-tint)); color: var(--emp-color, var(--ink-soft)); }
+.status-badge { align-self: flex-start; font-family: var(--font-display); font-size: 11px; font-weight: 700; letter-spacing: 0.04em; padding: 3px 10px; border-radius: 999px; background: var(--emp-soft, var(--surface-tint)); color: var(--emp-color, var(--ink-soft)); }
 .status-badge.idle { background: var(--surface-tint); color: var(--ink-soft); }
-.emp-task { width: 100%; font-size: 12.5px; color: var(--ink-soft); line-height: 1.5; min-height: 32px; background: var(--surface-tint); border-radius: var(--radius-sm); padding: 8px 10px; position: relative; text-align: left; box-sizing: border-box; }
+.emp-task { width: 100%; font-size: 12px; color: var(--ink-soft); line-height: 1.4; min-height: 0; background: var(--surface-tint); border-radius: var(--radius-sm); padding: 6px 9px; position: relative; text-align: left; box-sizing: border-box; }
 .emp-task::before { content: ''; position: absolute; top: -5px; left: 16px; width: 9px; height: 9px; background: var(--surface-tint); transform: rotate(45deg); }
-.emp-link-chip { align-self: center; font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 999px; background: var(--surface-tint); border: 1px dashed var(--line-strong); color: var(--ink-soft); }
+.emp-link-chip { align-self: flex-start; font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 999px; background: var(--surface-tint); border: 1px dashed var(--line-strong); color: var(--ink-soft); }
 
 .btn { border: none; border-radius: var(--radius-sm); padding: 9px 16px; font-weight: 700; font-size: 13.5px; background: var(--surface-tint); color: var(--ink); }
 .btn-primary { background: var(--d-decision); color: white; }
@@ -148,6 +152,8 @@ textarea, input, select { font-family: inherit; }
 .field label { font-size: 12.5px; font-weight: 700; color: var(--ink-soft); }
 .field input, .field textarea, .field select { border: 1px solid var(--line-strong); border-radius: var(--radius-sm); padding: 9px 11px; font-size: 13.5px; resize: vertical; background: var(--surface-tint); }
 .field textarea { min-height: 70px; }
+.code-area { min-height: 160px; font-family: 'SFMono-Regular', Consolas, Menlo, monospace; font-size: 12px; white-space: pre; }
+.field-actions { display: flex; justify-content: flex-end; margin-top: 6px; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 6px; flex-wrap: wrap; }
 .ai-row { display: flex; justify-content: flex-start; margin-bottom: 14px; }
 .ai-error { font-size: 12px; color: var(--bad); margin-top: 6px; }
@@ -191,8 +197,8 @@ textarea, input, select { font-family: inherit; }
 
 @media (max-width: 420px) {
   .company-stats { gap: 10px; }
-  .char-stage { height: 130px; }
-  .char-figure { width: 122px; height: 122px; }
+  .char-stage { width: 76px; height: 76px; }
+  .char-figure { width: 76px; height: 76px; }
   .decision-grid { grid-template-columns: 1fr; }
 }
 </style>
@@ -385,15 +391,15 @@ function useCompanyState() {
         if (error) throw error
         await logActivity('D', log)
       } else if (type === 'ADVANCE_DEV') {
-        const { projectId, note, score } = payload
+        const { projectId, note, code, score } = payload
         const project = findProject(projectId)
-        const { error } = await sb.from('projects').update({ stage: 'SALES', notes: { ...project?.notes, development: note }, scores: { ...project?.scores, development: score }, updated_at: nowIso() }).eq('id', projectId)
+        const { error } = await sb.from('projects').update({ stage: 'SALES', notes: { ...project?.notes, development: note, code }, scores: { ...project?.scores, development: score }, updated_at: nowIso() }).eq('id', projectId)
         if (error) throw error
         await logActivity('E', `開発が完了しました（${project?.title ?? projectId}）`)
       } else if (type === 'ADVANCE_SALES') {
-        const { projectId, note, score, customerAcquired } = payload
+        const { projectId, note, posts, outreach, score, customerAcquired } = payload
         const project = findProject(projectId)
-        const { error } = await sb.from('projects').update({ stage: 'COMPLETED', notes: { ...project?.notes, sales: note }, scores: { ...project?.scores, sales: score }, customer_acquired: !!customerAcquired, updated_at: nowIso() }).eq('id', projectId)
+        const { error } = await sb.from('projects').update({ stage: 'COMPLETED', notes: { ...project?.notes, sales: note, posts, outreach }, scores: { ...project?.scores, sales: score }, customer_acquired: !!customerAcquired, updated_at: nowIso() }).eq('id', projectId)
         if (error) throw error
         await logActivity('F', customerAcquired ? `🎉 CUSTOMER ACQUIRED（${project?.title ?? projectId}）` : `営業結果を記録しました（${project?.title ?? projectId}）`)
       } else if (type === 'REOPEN') {
@@ -591,13 +597,15 @@ function EmployeeCard({ employee, derived, linkedWith, onClick }) {
       <div className={`char-stage ${status === 'WORKING' ? 'pulsing' : ''}`}>
         <div className="char-figure"><CharacterFigure empKey={employee.key} /></div>
       </div>
-      <div className="emp-info">
-        <div className="emp-name">{employee.name}</div>
-        <div className="emp-role">{employee.roleEn}</div>
+      <div className="emp-body">
+        <div className="emp-info">
+          <div className="emp-name">{employee.name}</div>
+          <div className="emp-role">{employee.roleEn}</div>
+        </div>
+        <span className={`status-badge ${status === 'IDLE' ? 'idle' : ''}`}>{label}</span>
+        <div className="emp-task">{task}</div>
+        {linkedWith && <span className="emp-link-chip">🔗 {linkedWith.icon} {linkedWith.name}と連携中</span>}
       </div>
-      <span className={`status-badge ${status === 'IDLE' ? 'idle' : ''}`}>{label}</span>
-      <div className="emp-task">{task}</div>
-      {linkedWith && <span className="emp-link-chip">🔗 {linkedWith.icon} {linkedWith.name}と連携中</span>}
     </button>
   )
 }
@@ -622,9 +630,6 @@ function OfficeScreen({ projects, onSelectEmployee }) {
 
   return (
     <section className="office">
-      <div className="office-row">
-        {topRow.map((emp) => <EmployeeCard key={emp.key} employee={emp} derived={deriveEmployeeState(projects, emp.key)} linkedWith={linkMap[emp.key]} onClick={() => onSelectEmployee(emp.key)} />)}
-      </div>
       <div className="meeting-room">
         <span className="mr-label">MEETING ROOM</span>
         {handoffFrom && handoffTo ? (
@@ -637,6 +642,9 @@ function OfficeScreen({ projects, onSelectEmployee }) {
         ) : (
           <span className="mr-msg">{mostRecent ? `直近の動き：#${mostRecent.id}「${mostRecent.title}」— ${mostRecent.stage}` : 'まだ案件がありません。まずは社員Aにアイデアを登録してもらいましょう。'}</span>
         )}
+      </div>
+      <div className="office-row">
+        {topRow.map((emp) => <EmployeeCard key={emp.key} employee={emp} derived={deriveEmployeeState(projects, emp.key)} linkedWith={linkMap[emp.key]} onClick={() => onSelectEmployee(emp.key)} />)}
       </div>
       <div className="office-row">
         {bottomRow.map((emp) => <EmployeeCard key={emp.key} employee={emp} derived={deriveEmployeeState(projects, emp.key)} linkedWith={linkMap[emp.key]} onClick={() => onSelectEmployee(emp.key)} />)}
@@ -836,6 +844,20 @@ function IdeaFormModal({ onSubmit, onClose }) {
   )
 }
 
+function CopyButton({ text }) {
+  const [copied, setCopied] = useState(false)
+  const doCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(text || '')
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    } catch {
+      // クリップボードAPIが使えない場合は、手動で選択してコピーしてもらう
+    }
+  }
+  return <button type="button" className="btn btn-small btn-ghost" onClick={doCopy}>{copied ? '✓ コピーしました' : '📋 コピー'}</button>
+}
+
 const DECISIONS = [
   { key: 'APPROVED', label: 'APPROVED', cls: 'approved' },
   { key: 'NEEDS_REVISION', label: 'NEEDS_REVISION', cls: 'revision' },
@@ -846,6 +868,9 @@ const DECISIONS = [
 function AdvanceModal({ project, dispatch, onClose }) {
   const [note, setNote] = useState('')
   const [market, setMarket] = useState('')
+  const [code, setCode] = useState('')
+  const [posts, setPosts] = useState(['', ''])
+  const [outreach, setOutreach] = useState('')
   const [score, setScore] = useState('')
   const [decision, setDecision] = useState(null)
   const [reason, setReason] = useState('')
@@ -866,8 +891,18 @@ function AdvanceModal({ project, dispatch, onClose }) {
       }
       const employeeKey = stage === 'IDEA' ? 'B' : stage === 'PLANNING' ? 'C' : (stage === 'MONEY' || stage === 'APPROVAL') ? 'D' : stage === 'DEVELOPMENT' ? 'E' : 'F'
       const { data, provider } = await callAI(employeeKey, ctx)
-      if (employeeKey === 'D') { setDecision(data.decision || null); setReason(data.reason || '') }
-      else {
+      if (employeeKey === 'D') {
+        setDecision(data.decision || null); setReason(data.reason || '')
+      } else if (employeeKey === 'E') {
+        setNote(data.note || '')
+        if (data.code !== undefined) setCode(data.code || '')
+        if (data.score !== undefined) setScore(String(data.score))
+      } else if (employeeKey === 'F') {
+        setNote(data.note || '')
+        if (Array.isArray(data.posts)) setPosts([data.posts[0] || '', data.posts[1] || ''])
+        if (data.outreach !== undefined) setOutreach(data.outreach || '')
+        if (data.score !== undefined) setScore(String(data.score))
+      } else {
         setNote(data.note || '')
         if (data.market !== undefined) setMarket(data.market || '')
         if (data.score !== undefined) setScore(String(data.score))
@@ -881,8 +916,8 @@ function AdvanceModal({ project, dispatch, onClose }) {
     if (stage === 'IDEA') dispatch({ type: 'ADVANCE_PLAN', payload: { projectId: project.id, note } })
     else if (stage === 'PLANNING') dispatch({ type: 'ADVANCE_MONEY', payload: { projectId: project.id, note, market, score: Number(score) || 0 } })
     else if (stage === 'MONEY' || stage === 'APPROVAL') dispatch({ type: 'DECIDE', payload: { projectId: project.id, decision, reason } })
-    else if (stage === 'DEVELOPMENT') dispatch({ type: 'ADVANCE_DEV', payload: { projectId: project.id, note, score: Number(score) || 0 } })
-    else if (stage === 'SALES') dispatch({ type: 'ADVANCE_SALES', payload: { projectId: project.id, note, score: Number(score) || 0, customerAcquired } })
+    else if (stage === 'DEVELOPMENT') dispatch({ type: 'ADVANCE_DEV', payload: { projectId: project.id, note, code, score: Number(score) || 0 } })
+    else if (stage === 'SALES') dispatch({ type: 'ADVANCE_SALES', payload: { projectId: project.id, note, posts, outreach, score: Number(score) || 0, customerAcquired } })
     onClose()
   }
 
@@ -925,7 +960,12 @@ function AdvanceModal({ project, dispatch, onClose }) {
 
         {stage === 'DEVELOPMENT' && (
           <>
-            <div className="field"><label>開発メモ</label><textarea value={note} onChange={(e) => setNote(e.target.value)} /></div>
+            <div className="field"><label>開発メモ(何を確認できるプロトタイプか)</label><textarea value={note} onChange={(e) => setNote(e.target.value)} /></div>
+            <div className="field">
+              <label>プロトタイプのコード(単一HTMLファイル)</label>
+              <textarea className="code-area" value={code} onChange={(e) => setCode(e.target.value)} spellCheck={false} />
+              <div className="field-actions"><CopyButton text={code} /></div>
+            </div>
             <div className="field"><label>Code Quality Score(任意)</label><input type="number" min="0" max="100" value={score} onChange={(e) => setScore(e.target.value)} /></div>
           </>
         )}
@@ -933,8 +973,24 @@ function AdvanceModal({ project, dispatch, onClose }) {
         {stage === 'SALES' && (
           <>
             <div className="field"><label>営業結果メモ</label><textarea value={note} onChange={(e) => setNote(e.target.value)} /></div>
+            <div className="field">
+              <label>SNS投稿文案 1(そのままコピーして使えます)</label>
+              <textarea value={posts[0]} onChange={(e) => setPosts([e.target.value, posts[1]])} />
+              <div className="field-actions"><CopyButton text={posts[0]} /></div>
+            </div>
+            <div className="field">
+              <label>SNS投稿文案 2(切り口違い)</label>
+              <textarea value={posts[1]} onChange={(e) => setPosts([posts[0], e.target.value])} />
+              <div className="field-actions"><CopyButton text={posts[1]} /></div>
+            </div>
+            <div className="field">
+              <label>個別アプローチ文面(DM・メール用テンプレート)</label>
+              <textarea value={outreach} onChange={(e) => setOutreach(e.target.value)} />
+              <div className="field-actions"><CopyButton text={outreach} /></div>
+            </div>
             <div className="field"><label>Lead Score(任意)</label><input type="number" min="0" max="100" value={score} onChange={(e) => setScore(e.target.value)} /></div>
             <label className="checkbox-row"><input type="checkbox" checked={customerAcquired} onChange={(e) => setCustomerAcquired(e.target.checked)} />契約・顧客化に至った</label>
+            <div className="review-box">📮 送信は必ずご自身で行ってください(自動送信は行いません)。</div>
           </>
         )}
 
@@ -956,6 +1012,7 @@ function App() {
   const [showIdeaForm, setShowIdeaForm] = useState(false)
   const [advanceProject, setAdvanceProject] = useState(null)
   const [showSettings, setShowSettings] = useState(false)
+  const [activeTab, setActiveTab] = useState('office')
   const selectedEmployee = EMPLOYEES.find((e) => e.key === selectedEmployeeKey)
 
   if (state.error === 'NOT_CONFIGURED') {
@@ -975,19 +1032,41 @@ function App() {
     return <div className="app-shell"><div className="empty-state" style={{ marginTop: 40 }}>会社の状態を読み込んでいます…</div></div>
   }
 
+  const pipelineCount = state.projects.filter((p) => p.stage !== 'COMPLETED' && p.stage !== 'REJECTED').length
+
   return (
     <div className="app-shell">
       {state.error && <div className="reject-reason" style={{ marginBottom: 14 }}>通信エラー：{state.error}</div>}
       <CompanyHeader state={state} onOpenSettings={() => setShowSettings(true)} />
-      <OfficeScreen projects={state.projects} onSelectEmployee={setSelectedEmployeeKey} />
-      <div className="section-heading">
-        <h2>PROJECT PIPELINE</h2>
-        <div className="top-actions"><button className="btn btn-primary" onClick={() => setShowIdeaForm(true)}>+ 新しいアイデアを登録</button></div>
-      </div>
-      <ProjectPipeline projects={state.projects} onAdvance={setAdvanceProject} />
-      <RejectedArchive projects={state.projects} onReopen={(id) => dispatch({ type: 'REOPEN', payload: { projectId: id } })} />
-      <div className="section-heading"><h2>ACTIVITY LOG</h2></div>
-      <ActivityLog log={state.activityLog} />
+
+      <nav className="tab-bar">
+        <button className={`tab-btn ${activeTab === 'office' ? 'active' : ''}`} onClick={() => setActiveTab('office')}>🏢 オフィス</button>
+        <button className={`tab-btn ${activeTab === 'pipeline' ? 'active' : ''}`} onClick={() => setActiveTab('pipeline')}>📋 プロジェクト{pipelineCount > 0 ? ` (${pipelineCount})` : ''}</button>
+        <button className={`tab-btn ${activeTab === 'log' ? 'active' : ''}`} onClick={() => setActiveTab('log')}>📜 ログ</button>
+      </nav>
+
+      {activeTab === 'office' && (
+        <OfficeScreen projects={state.projects} onSelectEmployee={setSelectedEmployeeKey} />
+      )}
+
+      {activeTab === 'pipeline' && (
+        <>
+          <div className="section-heading">
+            <h2>PROJECT PIPELINE</h2>
+            <div className="top-actions"><button className="btn btn-primary" onClick={() => setShowIdeaForm(true)}>+ 新しいアイデアを登録</button></div>
+          </div>
+          <ProjectPipeline projects={state.projects} onAdvance={setAdvanceProject} />
+          <RejectedArchive projects={state.projects} onReopen={(id) => dispatch({ type: 'REOPEN', payload: { projectId: id } })} />
+        </>
+      )}
+
+      {activeTab === 'log' && (
+        <>
+          <div className="section-heading"><h2>ACTIVITY LOG</h2></div>
+          <ActivityLog log={state.activityLog} />
+        </>
+      )}
+
       {selectedEmployee && <EmployeeDetailModal employee={selectedEmployee} projects={state.projects} onClose={() => setSelectedEmployeeKey(null)} />}
       {showIdeaForm && <IdeaFormModal onSubmit={(payload) => dispatch({ type: 'ADD_IDEA', payload })} onClose={() => setShowIdeaForm(false)} />}
       {advanceProject && <AdvanceModal project={advanceProject} dispatch={dispatch} onClose={() => setAdvanceProject(null)} />}
