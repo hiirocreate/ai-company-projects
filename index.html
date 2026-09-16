@@ -349,11 +349,22 @@ async function callAI(employeeKey, ctx) {
   }
   const headers = { 'Content-Type': 'application/json' }
   if (API_SHARED_SECRET) headers['X-Site-Secret'] = API_SHARED_SECRET
-  const res = await fetch(API_BASE_URL, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({ employeeKey, ctx }),
-  })
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 45000)
+  let res
+  try {
+    res = await fetch(API_BASE_URL, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ employeeKey, ctx }),
+      signal: controller.signal,
+    })
+  } catch (e) {
+    if (e.name === 'AbortError') throw new Error('AI呼び出しがタイムアウトしました(45秒)。時間をおいてもう一度試してください。')
+    throw e
+  } finally {
+    clearTimeout(timeout)
+  }
   const json = await res.json().catch(() => null)
   if (!res.ok || !json || !json.ok) {
     throw new Error((json && json.error) || `AI呼び出しに失敗しました(status ${res.status})`)
