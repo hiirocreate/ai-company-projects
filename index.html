@@ -179,10 +179,12 @@ const { useState, useEffect, useCallback } = React;
    0. 接続設定 ― ここを自分の値に書き換えてください
    ・Supabase: Project Settings → Data API(URL) / API Keys(キー)
    ・API_BASE_URL: Cloudflare Workerをデプロイして発行されたURL(例 https://xxxx.yyyy.workers.dev)
+   ・API_SHARED_SECRET: API用Workerの環境変数 API_SHARED_SECRET と同じ値を入れる(任意・セキュリティ強化用)
 ========================================================= */
 const SUPABASE_URL = 'https://emliruckqsvlddzneczk.supabase.co'
 const SUPABASE_ANON_KEY = 'sb_publishable_7mi0OmqNKGTnYdGMtfs58Q_CYY_Qvt_'
 const API_BASE_URL = 'https://ai-company-projects.h-onoue-test.workers.dev'
+const API_SHARED_SECRET = '' // 例: 'my-secret-123'。API Worker側と同じ値にする。空文字なら未使用(以前と同じ動作)
 
 const supabaseConfigured =
   SUPABASE_URL.startsWith('http') && !SUPABASE_URL.includes('YOUR-PROJECT') &&
@@ -248,9 +250,11 @@ async function callAI(employeeKey, ctx) {
   if (API_BASE_URL.includes('YOUR-WORKER')) {
     throw new Error('API_BASE_URLが未設定です(index.html冒頭のAPI_BASE_URLを、デプロイしたWorkerのURLに書き換えてください)')
   }
+  const headers = { 'Content-Type': 'application/json' }
+  if (API_SHARED_SECRET) headers['X-Site-Secret'] = API_SHARED_SECRET
   const res = await fetch(API_BASE_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify({ employeeKey, ctx }),
   })
   const json = await res.json().catch(() => null)
