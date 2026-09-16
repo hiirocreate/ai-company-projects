@@ -96,7 +96,7 @@ textarea, input, select { font-family: inherit; }
 .employee-card:hover { transform: translateY(-2px); }
 .employee-card.working { box-shadow: 0 2px 0 rgba(38,36,51,0.06), 0 0 0 3px var(--emp-soft, var(--surface-tint)), 0 10px 24px -14px rgba(38, 36, 51, 0.25); }
 .employee-card .emp-top { display: flex; align-items: center; gap: 10px; }
-.emp-avatar { width: 56px; height: 56px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 28px; background: var(--emp-soft, var(--surface-tint)); flex-shrink: 0; position: relative; }
+.emp-avatar { width: 68px; height: 68px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: var(--surface-tint); flex-shrink: 0; position: relative; overflow: visible; }
 .emp-avatar.pulsing::after { content: ''; position: absolute; inset: -4px; border-radius: 50%; border: 2px solid var(--emp-color, var(--line)); animation: emp-pulse 1.6s ease-out infinite; }
 @keyframes emp-pulse { 0% { transform: scale(0.9); opacity: 0.8; } 100% { transform: scale(1.35); opacity: 0; } }
 .emp-name { font-weight: 700; font-size: 15px; }
@@ -188,7 +188,7 @@ textarea, input, select { font-family: inherit; }
 
 @media (max-width: 420px) {
   .company-stats { gap: 10px; }
-  .emp-avatar { width: 48px; height: 48px; font-size: 24px; }
+  .emp-avatar { width: 56px; height: 56px; }
   .decision-grid { grid-template-columns: 1fr; }
 }
 </style>
@@ -443,6 +443,83 @@ function getUpstreamEmployee(key) {
   return idx > 0 ? EMPLOYEES[idx - 1] : null
 }
 
+// 各社員のキャラクターイラスト(仕様書23章の持ち物設定に対応)
+function CharacterAvatar({ empKey }) {
+  const face = (
+    <>
+      <circle cx="50" cy="58" r="28" fill="var(--emp-color)" />
+      <circle cx="41" cy="55" r="3" fill="#262433" />
+      <circle cx="59" cy="55" r="3" fill="#262433" />
+      <path d="M41 66 Q50 73 59 66" stroke="#262433" strokeWidth="2.6" fill="none" strokeLinecap="round" />
+    </>
+  )
+  if (empKey === 'A') {
+    return (
+      <svg viewBox="0 0 100 100" width="100%" height="100%">
+        {face}
+        <line x1="50" y1="9" x2="50" y2="3" stroke="#E8960C" strokeWidth="2" strokeLinecap="round" />
+        <line x1="40" y1="13" x2="35" y2="8" stroke="#E8960C" strokeWidth="2" strokeLinecap="round" />
+        <line x1="60" y1="13" x2="65" y2="8" stroke="#E8960C" strokeWidth="2" strokeLinecap="round" />
+        <circle cx="50" cy="20" r="10" fill="#FFE18A" stroke="#E8960C" strokeWidth="2" />
+        <rect x="45" y="28" width="10" height="6" rx="1.5" fill="#B7791F" />
+      </svg>
+    )
+  }
+  if (empKey === 'B') {
+    return (
+      <svg viewBox="0 0 100 100" width="100%" height="100%">
+        {face}
+        <circle cx="41" cy="55" r="8" fill="none" stroke="#262433" strokeWidth="2.2" />
+        <circle cx="59" cy="55" r="8" fill="none" stroke="#262433" strokeWidth="2.2" />
+        <line x1="49" y1="55" x2="51" y2="55" stroke="#262433" strokeWidth="2.2" />
+        <rect x="70" y="62" width="17" height="22" rx="2" fill="#fff" stroke="#262433" strokeWidth="1.6" />
+        <line x1="73" y1="69" x2="84" y2="69" stroke="#262433" strokeWidth="1.4" />
+        <line x1="73" y1="75" x2="84" y2="75" stroke="#262433" strokeWidth="1.4" />
+      </svg>
+    )
+  }
+  if (empKey === 'C') {
+    return (
+      <svg viewBox="0 0 100 100" width="100%" height="100%">
+        {face}
+        <path d="M50 74 L45 83 L50 95 L55 83 Z" fill="#ffffff" opacity="0.85" />
+        <circle cx="78" cy="28" r="13" fill="#FFD65A" stroke="#B7791F" strokeWidth="2" />
+        <text x="78" y="33" fontSize="15" textAnchor="middle" fill="#B7791F" fontWeight="700">¥</text>
+      </svg>
+    )
+  }
+  if (empKey === 'D') {
+    return (
+      <svg viewBox="0 0 100 100" width="100%" height="100%">
+        {face}
+        <path d="M41 75 L50 80 L41 84 Z" fill="#ffffff" />
+        <path d="M59 75 L50 80 L59 84 Z" fill="#ffffff" />
+        <circle cx="50" cy="80" r="2" fill="#262433" />
+        <rect x="68" y="60" width="19" height="25" rx="2.5" fill="#fff" stroke="#262433" strokeWidth="1.6" />
+        <rect x="71" y="64" width="13" height="17" rx="1" fill="var(--emp-soft)" />
+      </svg>
+    )
+  }
+  if (empKey === 'E') {
+    return (
+      <svg viewBox="0 0 100 100" width="100%" height="100%">
+        {face}
+        <rect x="33" y="80" width="34" height="4" rx="1.5" fill="#262433" />
+        <path d="M37 80 L39 65 L61 65 L63 80 Z" fill="#fff" stroke="#262433" strokeWidth="1.6" />
+        <line x1="44" y1="72" x2="56" y2="72" stroke="var(--emp-color)" strokeWidth="2.4" />
+      </svg>
+    )
+  }
+  return (
+    <svg viewBox="0 0 100 100" width="100%" height="100%">
+      {face}
+      <rect x="71" y="59" width="15" height="25" rx="3" fill="#fff" stroke="#262433" strokeWidth="1.6" />
+      <circle cx="78.5" cy="80" r="1.5" fill="#262433" />
+      <path d="M16 38 h17 a4 4 0 0 1 4 4 v8 a4 4 0 0 1 -4 4 h-6 l-4 5 v-5 h-7 a4 4 0 0 1 -4 -4 v-8 a4 4 0 0 1 4 -4 z" fill="#fff" stroke="#262433" strokeWidth="1.4" />
+    </svg>
+  )
+}
+
 function EmployeeCard({ employee, derived, linkedWith, onClick }) {
   const { status, currentProject } = derived
   const label = status === 'WORKING' ? employee.workingLabel : status
@@ -450,7 +527,7 @@ function EmployeeCard({ employee, derived, linkedWith, onClick }) {
   return (
     <button className={`employee-card ${status === 'WORKING' ? 'working' : ''}`} style={{ '--emp-color': employee.color, '--emp-soft': employee.colorSoft }} onClick={onClick}>
       <div className="emp-top">
-        <div className={`emp-avatar ${status === 'WORKING' ? 'pulsing' : ''}`}>{employee.icon}</div>
+        <div className={`emp-avatar ${status === 'WORKING' ? 'pulsing' : ''}`}><CharacterAvatar empKey={employee.key} /></div>
         <div><div className="emp-name">{employee.name}</div><div className="emp-role">{employee.roleEn}</div></div>
       </div>
       <span className={`status-badge ${status === 'IDLE' ? 'idle' : ''}`}>{label}</span>
