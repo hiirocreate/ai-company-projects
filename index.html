@@ -418,7 +418,7 @@ async function autoAdvanceProject(project, dispatch) {
   } else if (employeeKey === 'D') {
     await dispatch({ type: 'DECIDE', payload: { projectId: project.id, decision: data.decision || 'HOLD', reason: data.reason || '', auto: true } })
   } else if (employeeKey === 'E') {
-    await dispatch({ type: 'ADVANCE_DEV', payload: { projectId: project.id, note: data.note || '', code: data.code || '', score: Number(data.score) || 0, review: data.review || '', auto: true } })
+    await dispatch({ type: 'ADVANCE_DEV', payload: { projectId: project.id, note: data.note || '', code: data.code || '', sql: data.sql || '', needsBackend: !!data.needsBackend, score: Number(data.score) || 0, review: data.review || '', auto: true } })
   } else if (employeeKey === 'F') {
     await dispatch({ type: 'ADVANCE_SALES', payload: { projectId: project.id, note: data.note || '', posts: Array.isArray(data.posts) ? data.posts : [], outreach: data.outreach || '', score: Number(data.score) || 0, customerAcquired: false, review: data.review || '', auto: true } })
   }
@@ -501,11 +501,11 @@ function useCompanyState() {
         await logActivity('D', `${auto ? '🤖自動：' : ''}${log}`)
         if (reason) await logActivity('D', `📋 判断理由：${reason}`)
       } else if (type === 'ADVANCE_DEV') {
-        const { projectId, note, code, score, review, auto } = payload
+        const { projectId, note, code, sql, needsBackend, score, review, auto } = payload
         const project = findProject(projectId)
-        const { error } = await sb.from('projects').update({ stage: 'SALES', notes: { ...project?.notes, development: note, code, reviews: { ...project?.notes?.reviews, E: review } }, scores: { ...project?.scores, development: score }, updated_at: nowIso() }).eq('id', projectId)
+        const { error } = await sb.from('projects').update({ stage: 'SALES', notes: { ...project?.notes, development: note, code, sql, needsBackend, reviews: { ...project?.notes?.reviews, E: review } }, scores: { ...project?.scores, development: score }, updated_at: nowIso() }).eq('id', projectId)
         if (error) throw error
-        await logActivity('E', `${auto ? '🤖自動：' : ''}開発が完了しました（${project?.title ?? projectId}）`)
+        await logActivity('E', `${auto ? '🤖自動：' : ''}開発が完了しました（${project?.title ?? projectId}）${sql ? '(Supabase連携あり)' : ''}`)
         if (review) await logActivity('E', `🔍 Dの確認：${review}`)
       } else if (type === 'ADVANCE_SALES') {
         const { projectId, note, posts, outreach, score, customerAcquired, review, auto } = payload
@@ -1098,11 +1098,19 @@ function ProjectDetailModal({ project, dispatch, onClose }) {
         {project.rejectReason && <div className="field"><label>却下理由</label><div className="reject-reason">{project.rejectReason}</div></div>}
 
         {notes.development && <div className="field"><label>💻 開発メモ(E){project.scores.development ? ` — Score ${project.scores.development}` : ''}</label><div className="detail-text">{notes.development}</div></div>}
+        {notes.needsBackend && <div className="review-box">⚠️ このプロトタイプはSupabaseだけでは実現できない部分を含みます(ダミー部分あり)。開発メモを参照してください。</div>}
         {notes.code && (
           <div className="field">
             <label>プロトタイプのコード(E)</label>
             <textarea className="code-area" value={notes.code} readOnly />
             <div className="field-actions"><CopyButton text={notes.code} /></div>
+          </div>
+        )}
+        {notes.sql && (
+          <div className="field">
+            <label>Supabaseテーブル作成SQL(1回だけ実行)</label>
+            <textarea className="code-area" value={notes.sql} readOnly />
+            <div className="field-actions"><CopyButton text={notes.sql} /></div>
           </div>
         )}
         {reviews.E && <div className="review-box">🔍 Eによる確認：{reviews.E}</div>}
@@ -1134,6 +1142,8 @@ function AdvanceModal({ project, dispatch, onClose }) {
   const [note, setNote] = useState('')
   const [market, setMarket] = useState('')
   const [code, setCode] = useState('')
+  const [sql, setSql] = useState('')
+  const [needsBackend, setNeedsBackend] = useState(false)
   const [posts, setPosts] = useState(['', ''])
   const [outreach, setOutreach] = useState('')
   const [score, setScore] = useState('')
@@ -1161,6 +1171,8 @@ function AdvanceModal({ project, dispatch, onClose }) {
       } else if (employeeKey === 'E') {
         setNote(data.note || '')
         if (data.code !== undefined) setCode(data.code || '')
+        if (data.sql !== undefined) setSql(data.sql || '')
+        setNeedsBackend(!!data.needsBackend)
         if (data.score !== undefined) setScore(String(data.score))
       } else if (employeeKey === 'F') {
         setNote(data.note || '')
@@ -1181,7 +1193,7 @@ function AdvanceModal({ project, dispatch, onClose }) {
     if (stage === 'IDEA') dispatch({ type: 'ADVANCE_PLAN', payload: { projectId: project.id, note } })
     else if (stage === 'PLANNING') dispatch({ type: 'ADVANCE_MONEY', payload: { projectId: project.id, note, market, score: Number(score) || 0 } })
     else if (stage === 'MONEY' || stage === 'APPROVAL') dispatch({ type: 'DECIDE', payload: { projectId: project.id, decision, reason } })
-    else if (stage === 'DEVELOPMENT') dispatch({ type: 'ADVANCE_DEV', payload: { projectId: project.id, note, code, score: Number(score) || 0 } })
+    else if (stage === 'DEVELOPMENT') dispatch({ type: 'ADVANCE_DEV', payload: { projectId: project.id, note, code, sql, needsBackend, score: Number(score) || 0 } })
     else if (stage === 'SALES') dispatch({ type: 'ADVANCE_SALES', payload: { projectId: project.id, note, posts, outreach, score: Number(score) || 0, customerAcquired } })
     onClose()
   }
@@ -1226,11 +1238,19 @@ function AdvanceModal({ project, dispatch, onClose }) {
         {stage === 'DEVELOPMENT' && (
           <>
             <div className="field"><label>開発メモ(何を確認できるプロトタイプか)</label><textarea value={note} onChange={(e) => setNote(e.target.value)} /></div>
+            {needsBackend && <div className="review-box">⚠️ このアイデアはSupabaseだけでは実現できない部分があります。コード内のどこがダミーかは開発メモを確認してください。</div>}
             <div className="field">
               <label>プロトタイプのコード(単一HTMLファイル)</label>
               <textarea className="code-area" value={code} onChange={(e) => setCode(e.target.value)} spellCheck={false} />
               <div className="field-actions"><CopyButton text={code} /></div>
             </div>
+            {sql && (
+              <div className="field">
+                <label>Supabaseテーブル作成SQL(1回だけ実行)</label>
+                <textarea className="code-area" value={sql} onChange={(e) => setSql(e.target.value)} spellCheck={false} />
+                <div className="field-actions"><CopyButton text={sql} /></div>
+              </div>
+            )}
             <div className="field"><label>Code Quality Score(任意)</label><input type="number" min="0" max="100" value={score} onChange={(e) => setScore(e.target.value)} /></div>
           </>
         )}
