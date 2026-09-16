@@ -10,10 +10,16 @@
 const GEMINI_MODEL = 'gemini-3.5-flash' // 無料枠モデル。将来変更があれば書き換えてください。
 const WORKERS_AI_MODEL = '@cf/zai-org/glm-4.7-flash' // Gemini失敗時のフォールバック(無料・APIキー不要)
 
-const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': '*', // 必要なら自分のpages.devドメインに絞ってください
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
+// CORS: env.ALLOWED_ORIGIN を設定すると、そのオリジンだけに制限されます(推奨)。
+// 未設定の場合は '*'(誰でも呼び出し可能)のままなので、セキュリティを上げたい場合は
+// このWorkerのSettings → Variables and Secrets で ALLOWED_ORIGIN に自分のpages.dev
+// のURL(例: https://ai-company-projects.pages.dev)を設定してください。
+function corsHeaders(env) {
+  return {
+    'Access-Control-Allow-Origin': env.ALLOWED_ORIGIN || '*',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, X-Site-Secret',
+  }
 }
 
 const COMPANY_RULES = `
@@ -207,23 +213,55 @@ function extractJson(text) {
   return JSON.parse(cleaned.slice(start, end + 1))
 }
 
-function json(body, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json', ...CORS_HEADERS },
-  })
+// ---------------------------------------------------------------------------
+// プロバイダー登録リスト ― 新しい無料APIを追加したいときはここに1行足すだけでOK。
+// 上から順番に試し、失敗したら次を試す(自動フォールバック)。
+// 例: Groqを足したい場合 → async function callGroq(env, prompt) {...} を書いて
+//     下の配列に { name: 'groq', call: callGroq } を追加するだけ。
+// ---------------------------------------------------------------------------
+const PROVIDERS = [
+  { name: 'gemini', call: callGemini },
+  { name: 'workers-ai', call: callWorkersAI },
+]
+
+async function generateWithFallback(env, prompt) {
+  const errors = []
+  for (const provider of PROVIDERS) {
+    try {
+      const rawText = await provider.call(env, prompt)
+      const data = extractJson(rawText)
+      return { data, provider: provider.name, errors }
+    } catch (err) {
+      errors.push(`${provider.name}: ${String(err.message || err)}`)
+    }
+  }
+  throw new Error(errors.join(' / '))
 }
 
 export default {
   async fetch(request, env) {
+    const cors = corsHeaders(env)
+    const json = (body, status = 200) =>
+      new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', ...cors } })
+
     if (request.method === 'OPTIONS') {
-      return new Response(null, { headers: CORS_HEADERS })
+      return new Response(null, { headers: cors })
     }
     if (request.method === 'GET') {
       return json({ ok: true, message: 'POSTで employeeKey と ctx を送ってください' })
     }
     if (request.method !== 'POST') {
       return json({ ok: false, error: 'POSTのみ対応しています' }, 405)
+    }
+
+    // 共有シークレット(任意)：env.API_SHARED_SECRET を設定すると、
+    // 同じ値を X-Site-Secret ヘッダーで送ってきたリクエストだけを受け付けます。
+    // index.html側のAPI_SHARED_SECRETと同じ値にしてください。未設定なら誰でも呼べます。
+    if (env.API_SHARED_SECRET) {
+      const provided = request.headers.get('X-Site-Secret')
+      if (provided !== env.API_SHARED_SECRET) {
+        return json({ ok: false, error: '認証に失敗しました(X-Site-Secretが一致しません)' }, 401)
+      }
     }
 
     let employeeKey, ctx
@@ -241,23 +279,11 @@ export default {
 
     const prompt = PROMPTS[employeeKey](ctx || {})
 
-    // 1) Gemini(無料枠)をまず試す
     try {
-      const rawText = await callGemini(env, prompt)
-      const data = extractJson(rawText)
-      return json({ ok: true, data, provider: 'gemini' })
-    } catch (geminiErr) {
-      // 2) 失敗した場合はCloudflare Workers AI(無料・APIキー不要)にフォールバック
-      try {
-        const rawText = await callWorkersAI(env, prompt)
-        const data = extractJson(rawText)
-        return json({ ok: true, data, provider: 'workers-ai', geminiError: String(geminiErr.message || geminiErr) })
-      } catch (fallbackErr) {
-        return json({
-          ok: false,
-          error: `Gemini失敗: ${String(geminiErr.message || geminiErr)} / Workers AI失敗: ${String(fallbackErr.message || fallbackErr)}`,
-        }, 500)
-      }
+      const { data, provider, errors } = await generateWithFallback(env, prompt)
+      return json({ ok: true, data, provider, ...(errors.length ? { fallbackErrors: errors } : {}) })
+    } catch (err) {
+      return json({ ok: false, error: String(err.message || err) }, 500)
     }
   },
 }
