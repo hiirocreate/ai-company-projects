@@ -1121,117 +1121,182 @@ async function generateProposalDocx(project, doc) {
   const heading = (text) => new Paragraph({ text, heading: HeadingLevel.HEADING_2, spacing: { before: 280, after: 120 } })
   const body = (text) => new Paragraph({ children: [new TextRun(text || '(未記入)')], spacing: { after: 200 } })
   const bullet = (text) => new Paragraph({ text, bullet: { level: 0 }, spacing: { after: 80 } })
+  const spacer = () => new Paragraph({ text: '', spacing: { after: 200 } })
   const cell = (text, isHeader) => new TableCell({
     children: [new Paragraph({ children: [new TextRun({ text: String(text ?? ''), bold: !!isHeader })] })],
-    width: { size: 33, type: WidthType.PERCENTAGE },
+    width: { size: 25, type: WidthType.PERCENTAGE },
   })
-
-  const metricsTable = new Table({
+  const table = (headerCells, rows) => new Table({
     width: { size: 100, type: WidthType.PERCENTAGE },
-    rows: [
-      new TableRow({ children: [cell('指標', true), cell('スコア', true)] }),
-      new TableRow({ children: [cell('Monetization Score'), cell(project.scores?.monetization ?? '未評価')] }),
-      new TableRow({ children: [cell('Code Quality Score'), cell(project.scores?.development ?? '未評価')] }),
-      new TableRow({ children: [cell('Lead Score'), cell(project.scores?.sales ?? '未評価')] }),
-    ],
+    rows: [new TableRow({ children: headerCells.map((h) => cell(h, true)) }), ...rows.map((r) => new TableRow({ children: r.map((v) => cell(v)) }))],
   })
 
-  const competitorRows = [new TableRow({ children: [cell('名称', true), cell('強み', true), cell('価格帯', true)] })]
-  ;(doc.competitorTable || []).forEach((c) => {
-    competitorRows.push(new TableRow({ children: [cell(c.name), cell(c.strength), cell(c.price)] }))
-  })
-  const competitorTable = new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: competitorRows })
+  const pricingTable = table(['プラン', '価格', '対象', '備考'], (doc.pricingPlans || []).map((p) => [p.planName, p.price, p.target, p.note]))
+  const metricsTable = table(['指標', 'スコア'], [
+    ['Monetization Score', project.scores?.monetization ?? '未評価'],
+    ['Code Quality Score', project.scores?.development ?? '未評価'],
+    ['Lead Score', project.scores?.sales ?? '未評価'],
+  ])
 
   const blocks = [
     new Paragraph({ text: project.title, heading: HeadingLevel.TITLE }),
     new Paragraph({ children: [new TextRun({ text: doc.tagline || '', italics: true })], spacing: { after: 300 } }),
+
     heading('エグゼクティブサマリー'), body(doc.executiveSummary),
-    heading('課題'), body(doc.problemDetail || project.problem),
-    heading('対象ユーザー'), body(project.target),
-    heading('解決策'), body(doc.solutionDetail || project.solution),
-    heading('市場規模'), body(doc.marketSizeFigure),
-    heading('競合比較'), competitorTable, new Paragraph({ text: '', spacing: { after: 200 } }),
-    heading('価格モデル・収益見込み'), body(doc.pricingModel), body(doc.revenueProjection),
-    heading('主要指標'), metricsTable, new Paragraph({ text: '', spacing: { after: 200 } }),
+
+    heading('課題提起'), body(doc.problemStatement || project.problem),
+    body(doc.problemImpact),
+
+    heading('解決策とそのロジック'), body(doc.solutionLogic || project.solution),
+    ...(doc.solutionSteps && doc.solutionSteps.length ? doc.solutionSteps.map((s, i) => bullet(`${i + 1}. ${s}`)) : []),
+    spacer(),
+
+    heading('機能・強み'),
+    ...(doc.features && doc.features.length
+      ? doc.features.map((f) => new Paragraph({ children: [new TextRun({ text: `${f.title}：`, bold: true }), new TextRun(f.detail || '')], spacing: { after: 120 } }))
+      : [body('')]),
+
+    heading('料金プラン'), pricingTable, spacer(),
+    heading('市場規模・収益見込み'), body(doc.marketSizeFigure), body(doc.revenueProjection),
+  ]
+
+  if (doc.hasCompetitors !== false && doc.competitorTable && doc.competitorTable.length) {
+    blocks.push(heading('競合比較'))
+    blocks.push(table(['名称', '強み', '価格帯'], doc.competitorTable.map((c) => [c.name, c.strength, c.price])))
+    blocks.push(spacer())
+  }
+
+  blocks.push(
+    heading('主要指標'), metricsTable, spacer(),
     heading('開発状況'), body(doc.developmentSummary || project.notes?.development),
     heading('営業状況'), body(doc.salesSummary || project.notes?.sales),
+    heading('まとめ'), body(doc.summary),
     heading('次のアクション'),
     ...(doc.nextSteps && doc.nextSteps.length ? doc.nextSteps.map((s) => bullet(s)) : [body('')]),
-  ]
+  )
 
   const document = new Document({ sections: [{ children: blocks }] })
   const blob = await Packer.toBlob(document)
   downloadBlob(blob, `${project.title}_企画書.docx`)
 }
 
-// 提案書(pptx)を生成 ― 表紙・図表付きのデザインされたスライドとして組み立てる。
+// 提案書(pptx)を生成 ― 一般的な提案書の型(問題提起→解決ロジック→機能→料金→競合→まとめ)で、
+// 図表・カードレイアウトを使ってスライド全体を埋めるように組み立てる。
 function generateProposalPptx(project, doc) {
   const pres = new PptxGenJS()
   const ACCENT = '3F7FD1'
+  const ACCENT_SOFT = 'E8F0FC'
   const DARK = '262433'
-
-  const s0 = pres.addSlide()
-  s0.background = { color: ACCENT }
-  s0.addText(project.title, { x: 0.6, y: 1.9, w: 8.8, h: 1.1, fontSize: 34, bold: true, color: 'FFFFFF' })
-  s0.addText(doc.tagline || '', { x: 0.6, y: 3.1, w: 8.8, h: 0.6, fontSize: 16, italic: true, color: 'FFFFFF' })
+  const SOFT = '6F6C80'
 
   const sectionSlide = (label, title) => {
     const s = pres.addSlide()
     s.background = { color: 'FFFFFF' }
-    s.addShape(pres.ShapeType.rect, { x: 0, y: 0, w: 10, h: 0.9, fill: { color: ACCENT } })
-    s.addText(label, { x: 0.5, y: 0.12, w: 9, h: 0.3, fontSize: 11, color: 'FFFFFF', bold: true })
-    s.addText(title, { x: 0.5, y: 0.38, w: 9, h: 0.48, fontSize: 24, color: 'FFFFFF', bold: true })
+    s.addShape(pres.ShapeType.rect, { x: 0, y: 0, w: 10, h: 1.0, fill: { color: ACCENT } })
+    s.addShape(pres.ShapeType.rect, { x: 0, y: 1.0, w: 10, h: 0.05, fill: { color: DARK } })
+    s.addText(label, { x: 0.5, y: 0.12, w: 9, h: 0.3, fontSize: 11, color: 'FFFFFF', bold: true, charSpacing: 2 })
+    s.addText(title, { x: 0.5, y: 0.4, w: 9, h: 0.55, fontSize: 25, color: 'FFFFFF', bold: true })
     return s
   }
+  const card = (s, x, y, w, h, title, detail, opts) => {
+    s.addShape(pres.ShapeType.rect, { x, y, w, h, fill: { color: (opts && opts.fill) || ACCENT_SOFT }, line: { color: 'D9D7E3', width: 0.5 } })
+    if (title) s.addText(title, { x: x + 0.15, y: y + 0.12, w: w - 0.3, h: 0.4, fontSize: (opts && opts.titleSize) || 14, bold: true, color: ACCENT })
+    s.addText(detail || '', { x: x + 0.15, y: y + ((opts && opts.detailY) || 0.55), w: w - 0.3, h: h - ((opts && opts.detailY) || 0.55) - 0.1, fontSize: (opts && opts.detailSize) || 12, color: DARK, valign: 'top' })
+  }
 
-  const s1 = sectionSlide('OVERVIEW', 'エグゼクティブサマリー')
-  s1.addText(doc.executiveSummary || '', { x: 0.6, y: 1.3, w: 8.8, h: 3.8, fontSize: 16, color: DARK, valign: 'top' })
+  // 表紙
+  const s0 = pres.addSlide()
+  s0.background = { color: ACCENT }
+  s0.addShape(pres.ShapeType.rect, { x: 0, y: 4.9, w: 10, h: 0.03, fill: { color: 'FFFFFF' } })
+  s0.addText(project.title, { x: 0.6, y: 1.9, w: 8.8, h: 1.1, fontSize: 34, bold: true, color: 'FFFFFF' })
+  s0.addText(doc.tagline || '', { x: 0.6, y: 3.05, w: 8.8, h: 0.6, fontSize: 16, italic: true, color: 'FFFFFF' })
+  s0.addText('PROPOSAL', { x: 0.6, y: 0.5, w: 8.8, h: 0.4, fontSize: 12, color: 'FFFFFF', bold: true, charSpacing: 3 })
 
-  const s2 = sectionSlide('PROBLEM & SOLUTION', '課題と解決策')
-  s2.addText('課題', { x: 0.6, y: 1.2, w: 4.2, h: 0.4, fontSize: 14, bold: true, color: ACCENT })
-  s2.addText(doc.problemDetail || project.problem || '', { x: 0.6, y: 1.6, w: 4.1, h: 3.3, fontSize: 13, color: DARK, valign: 'top' })
-  s2.addText('解決策', { x: 5.2, y: 1.2, w: 4.2, h: 0.4, fontSize: 14, bold: true, color: ACCENT })
-  s2.addText(doc.solutionDetail || project.solution || '', { x: 5.2, y: 1.6, w: 4.2, h: 3.3, fontSize: 13, color: DARK, valign: 'top' })
+  // 課題提起(数字インパクトを大きく見せる)
+  const s1 = sectionSlide('PROBLEM', '課題提起')
+  s1.addText(doc.problemStatement || project.problem || '', { x: 0.6, y: 1.3, w: 8.8, h: 1.5, fontSize: 17, color: DARK, valign: 'top' })
+  s1.addShape(pres.ShapeType.rect, { x: 0.6, y: 3.0, w: 8.8, h: 1.6, fill: { color: ACCENT_SOFT } })
+  s1.addText('放置した場合の影響', { x: 0.9, y: 3.2, w: 8.2, h: 0.4, fontSize: 13, bold: true, color: ACCENT })
+  s1.addText(doc.problemImpact || '', { x: 0.9, y: 3.6, w: 8.2, h: 0.9, fontSize: 15, color: DARK, valign: 'top' })
 
-  const s3 = sectionSlide('MARKET', '市場・競合分析')
-  s3.addText(doc.marketSizeFigure || '', { x: 0.6, y: 1.15, w: 8.8, h: 0.7, fontSize: 14, color: DARK, valign: 'top' })
-  const compRows = [
-    [
-      { text: '名称', options: { bold: true, fill: { color: ACCENT }, color: 'FFFFFF' } },
-      { text: '強み', options: { bold: true, fill: { color: ACCENT }, color: 'FFFFFF' } },
-      { text: '価格帯', options: { bold: true, fill: { color: ACCENT }, color: 'FFFFFF' } },
-    ],
-    ...(doc.competitorTable || []).map((c) => [c.name || '', c.strength || '', c.price || '']),
-  ]
-  s3.addTable(compRows, { x: 0.6, y: 2.0, w: 8.8, fontSize: 12, color: DARK, autoPage: false })
+  // 解決ロジック(3ステップのフロー図)
+  const s2 = sectionSlide('SOLUTION', '解決策とそのロジック')
+  s2.addText(doc.solutionLogic || project.solution || '', { x: 0.6, y: 1.25, w: 8.8, h: 0.9, fontSize: 14, color: DARK, valign: 'top' })
+  const steps = (doc.solutionSteps && doc.solutionSteps.length ? doc.solutionSteps : ['', '', '']).slice(0, 3)
+  const stepW = 2.6
+  steps.forEach((step, i) => {
+    const x = 0.6 + i * (stepW + 0.5)
+    s2.addShape(pres.ShapeType.ellipse, { x, y: 2.5, w: 0.5, h: 0.5, fill: { color: ACCENT } })
+    s2.addText(String(i + 1), { x, y: 2.5, w: 0.5, h: 0.5, fontSize: 16, bold: true, color: 'FFFFFF', align: 'center', valign: 'middle' })
+    s2.addShape(pres.ShapeType.rect, { x, y: 3.15, w: stepW, h: 1.3, fill: { color: ACCENT_SOFT } })
+    s2.addText(step, { x: x + 0.1, y: 3.25, w: stepW - 0.2, h: 1.1, fontSize: 12, color: DARK, valign: 'top' })
+    if (i < 2) s2.addText('→', { x: x + stepW, y: 2.9, w: 0.5, h: 0.5, fontSize: 20, bold: true, color: SOFT, align: 'center' })
+  })
 
-  const s4 = sectionSlide('METRICS', '主要指標')
+  // 機能・強み(3カードで横幅を使い切る)
+  const s3 = sectionSlide('FEATURES', 'ツールの特長')
+  const features = (doc.features && doc.features.length ? doc.features : [{}, {}, {}]).slice(0, 3)
+  const fW = 2.8
+  features.forEach((f, i) => {
+    const x = 0.6 + i * (fW + 0.3)
+    card(s3, x, 1.3, fW, 3.6, f.title, f.detail, { detailY: 0.6 })
+  })
+
+  // 料金プラン(3プランをカード比較)
+  const s4 = sectionSlide('PRICING', '料金プラン')
+  const plans = (doc.pricingPlans && doc.pricingPlans.length ? doc.pricingPlans : [{}, {}, {}]).slice(0, 3)
+  const pW = 2.8
+  plans.forEach((p, i) => {
+    const x = 0.6 + i * (pW + 0.3)
+    s4.addShape(pres.ShapeType.rect, { x, y: 1.3, w: pW, h: 3.6, fill: { color: i === 1 ? ACCENT : ACCENT_SOFT } })
+    const fg = i === 1 ? 'FFFFFF' : DARK
+    s4.addText(p.planName || '', { x: x + 0.15, y: 1.45, w: pW - 0.3, h: 0.4, fontSize: 14, bold: true, color: fg })
+    s4.addText(p.price || '', { x: x + 0.15, y: 1.9, w: pW - 0.3, h: 0.6, fontSize: 20, bold: true, color: fg })
+    s4.addText(p.target || '', { x: x + 0.15, y: 2.6, w: pW - 0.3, h: 0.5, fontSize: 11, color: fg })
+    s4.addText(p.note || '', { x: x + 0.15, y: 3.2, w: pW - 0.3, h: 1.5, fontSize: 11, color: fg, valign: 'top' })
+  })
+
+  // 市場・競合(データがある場合のみ)
+  if (doc.hasCompetitors !== false && doc.competitorTable && doc.competitorTable.length) {
+    const s5 = sectionSlide('MARKET', '市場・競合比較')
+    s5.addText(doc.marketSizeFigure || '', { x: 0.6, y: 1.15, w: 8.8, h: 0.6, fontSize: 13, color: DARK, valign: 'top' })
+    const compRows = [
+      [
+        { text: '名称', options: { bold: true, fill: { color: ACCENT }, color: 'FFFFFF' } },
+        { text: '強み', options: { bold: true, fill: { color: ACCENT }, color: 'FFFFFF' } },
+        { text: '価格帯', options: { bold: true, fill: { color: ACCENT }, color: 'FFFFFF' } },
+      ],
+      ...doc.competitorTable.map((c) => [c.name || '', c.strength || '', c.price || '']),
+    ]
+    s5.addTable(compRows, { x: 0.6, y: 1.85, w: 8.8, fontSize: 12, color: DARK, autoPage: false })
+  }
+
+  // 指標
+  const s6 = sectionSlide('METRICS', '主要指標')
   const metricsData = [{
     name: 'Score',
     labels: ['Monetization', 'Code Quality', 'Lead'],
     values: [project.scores?.monetization || 0, project.scores?.development || 0, project.scores?.sales || 0],
   }]
-  s4.addChart(pres.ChartType.bar, metricsData, { x: 0.6, y: 1.3, w: 8.8, h: 3.8, barColor: ACCENT, showValue: true, valAxisMaxVal: 100 })
+  s6.addChart(pres.ChartType.bar, metricsData, { x: 0.6, y: 1.3, w: 8.8, h: 3.6, barColor: ACCENT, showValue: true, valAxisMaxVal: 100 })
 
-  const s5 = sectionSlide('BUSINESS MODEL', '収益モデル')
-  s5.addText('価格モデル', { x: 0.6, y: 1.2, w: 8.8, h: 0.35, fontSize: 14, bold: true, color: ACCENT })
-  s5.addText(doc.pricingModel || '', { x: 0.6, y: 1.6, w: 8.8, h: 0.9, fontSize: 13, color: DARK, valign: 'top' })
-  s5.addText('収益見込み', { x: 0.6, y: 2.6, w: 8.8, h: 0.35, fontSize: 14, bold: true, color: ACCENT })
-  s5.addText(doc.revenueProjection || '', { x: 0.6, y: 3.0, w: 8.8, h: 0.9, fontSize: 13, color: DARK, valign: 'top' })
+  // 開発・営業状況
+  const s7 = sectionSlide('STATUS', '開発・営業状況')
+  card(s7, 0.6, 1.3, 4.2, 3.6, '開発状況', doc.developmentSummary || project.notes?.development, { detailY: 0.55 })
+  card(s7, 5.2, 1.3, 4.2, 3.6, '営業状況', doc.salesSummary || project.notes?.sales, { detailY: 0.55 })
 
-  const s6 = sectionSlide('STATUS', '開発・営業状況')
-  s6.addText('開発状況', { x: 0.6, y: 1.2, w: 8.8, h: 0.35, fontSize: 14, bold: true, color: ACCENT })
-  s6.addText(doc.developmentSummary || project.notes?.development || '', { x: 0.6, y: 1.6, w: 8.8, h: 1.1, fontSize: 13, color: DARK, valign: 'top' })
-  s6.addText('営業状況', { x: 0.6, y: 2.8, w: 8.8, h: 0.35, fontSize: 14, bold: true, color: ACCENT })
-  s6.addText(doc.salesSummary || project.notes?.sales || '', { x: 0.6, y: 3.2, w: 8.8, h: 1.1, fontSize: 13, color: DARK, valign: 'top' })
-
-  const s7 = sectionSlide('NEXT STEPS', '次のアクション')
-  const steps = doc.nextSteps && doc.nextSteps.length ? doc.nextSteps : ['(未定)']
-  steps.forEach((step, i) => {
-    const y = 1.3 + i * 1.0
-    s7.addShape(pres.ShapeType.ellipse, { x: 0.6, y, w: 0.6, h: 0.6, fill: { color: ACCENT } })
-    s7.addText(String(i + 1), { x: 0.6, y, w: 0.6, h: 0.6, fontSize: 20, bold: true, color: 'FFFFFF', align: 'center', valign: 'middle' })
-    s7.addText(step, { x: 1.4, y, w: 7.8, h: 0.6, fontSize: 15, color: DARK, valign: 'middle' })
+  // まとめ(表紙と対の色で締める)
+  const s8 = pres.addSlide()
+  s8.background = { color: ACCENT }
+  s8.addText('SUMMARY', { x: 0.6, y: 0.5, w: 8.8, h: 0.4, fontSize: 12, color: 'FFFFFF', bold: true, charSpacing: 3 })
+  s8.addText('まとめ', { x: 0.6, y: 0.9, w: 8.8, h: 0.6, fontSize: 26, bold: true, color: 'FFFFFF' })
+  s8.addText(doc.summary || '', { x: 0.6, y: 1.7, w: 8.8, h: 1.3, fontSize: 15, color: 'FFFFFF', valign: 'top' })
+  const nextSteps = doc.nextSteps && doc.nextSteps.length ? doc.nextSteps : ['(未定)']
+  nextSteps.forEach((step, i) => {
+    const y = 3.2 + i * 0.65
+    s8.addShape(pres.ShapeType.ellipse, { x: 0.6, y, w: 0.45, h: 0.45, fill: { color: 'FFFFFF' } })
+    s8.addText(String(i + 1), { x: 0.6, y, w: 0.45, h: 0.45, fontSize: 15, bold: true, color: ACCENT, align: 'center', valign: 'middle' })
+    s8.addText(step, { x: 1.25, y, w: 8.0, h: 0.45, fontSize: 14, color: 'FFFFFF', valign: 'middle' })
   })
 
   pres.writeFile({ fileName: `${project.title}_提案書.pptx` })
