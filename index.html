@@ -1334,19 +1334,23 @@ function App() {
   useEffect(() => {
     if (!autoMode) return
     function scan() {
-      for (const project of state.projects) {
-        if (project.stage === 'COMPLETED' || project.stage === 'REJECTED') continue
-        if (project.stage === 'APPROVAL' && project.decision === 'HOLD') continue // HOLDは人による確認待ちのまま
-        if (project.notes?.frozen) continue // 凍結中はAIを一切呼ばない
-        if (autoProcessingRef.current.has(project.id)) continue
-        autoProcessingRef.current.add(project.id)
-        autoAdvanceProject(project, dispatch)
-          .catch((e) => {
-            console.error('自動パイプラインでエラー:', project.id, e)
-            dispatch({ type: 'LOG_MESSAGE', payload: { key: stageEmployeeKey(project.stage), message: `⚠️ 自動処理に失敗しました（${project.title}）：${e.message || e}` } })
-          })
-          .finally(() => autoProcessingRef.current.delete(project.id))
-      }
+      // 一度に1件だけ処理する(複数件を同時に呼ぶとGemini無料枠のレート制限に
+      // 引っかかりやすく、それがタイムアウト頻発の原因になりうるため)
+      if (autoProcessingRef.current.size > 0) return
+      const project = state.projects.find((p) => {
+        if (p.stage === 'COMPLETED' || p.stage === 'REJECTED') return false
+        if (p.stage === 'APPROVAL' && p.decision === 'HOLD') return false // HOLDは人による確認待ちのまま
+        if (p.notes?.frozen) return false // 凍結中はAIを一切呼ばない
+        return true
+      })
+      if (!project) return
+      autoProcessingRef.current.add(project.id)
+      autoAdvanceProject(project, dispatch)
+        .catch((e) => {
+          console.error('自動パイプラインでエラー:', project.id, e)
+          dispatch({ type: 'LOG_MESSAGE', payload: { key: stageEmployeeKey(project.stage), message: `⚠️ 自動処理に失敗しました（${project.title}）：${e.message || e}` } })
+        })
+        .finally(() => autoProcessingRef.current.delete(project.id))
     }
     scan()
     const interval = setInterval(scan, 20000) // エラー等で止まったプロジェクトの再試行用
