@@ -24,8 +24,10 @@ Geminiがレート制限などで使えないときは、**Cloudflare Workers AI
 ```
 ai-company-web/
 ├── index.html              # 静的サイト本体(GitHub経由でCloudflareにデプロイする)
-├── wrangler.jsonc          # 静的サイト用Workerのビルド設定(GitHubにアップロードする)
-├── site-worker.js          # 静的サイトにBasic認証をかけるWorker(GitHubにアップロードする)
+├── wrangler.jsonc          # (Cloudflare Pagesでは実質未使用。互換性のため残置)
+├── _worker.js              # 静的サイトにBasic認証をかけるWorker(Cloudflare Pagesの
+                             #   "Advanced mode"用。ファイル名は必ず _worker.js のままにする。
+                             #   GitHubのリポジトリ直下にアップロードする)
 ├── worker/
 │   └── generate.js         # AI呼び出し用Worker(Cloudflareのコードエディタに貼り付ける。アップロード不要)
 └── supabase/
@@ -122,7 +124,10 @@ Geminiのキーはここには書きません(手順3-5でWorker側にだけ設�
 - SUPABASE_ANON_KEY(Publishable key)はindex.htmlの中に直接書きます(ブラウザから見える状態に
   なりますが、この鍵はもともと公開される前提のもので、実際のアクセス制御は`schema.sql`で設定した
   Row Level Securityが担っています)。
-- **サイト全体にログイン(Basic認証)を追加しました。** 静的サイト用Worker(`site-worker.js`)の
+- **サイト全体にログイン(Basic認証)を追加しました。** これはCloudflare Pagesの"Advanced mode"という
+  仕組みを使っており、リポジトリ直下に**必ず`_worker.js`という名前**のファイルを置く必要があります
+  (このファイルがあると、Pagesは静的ファイルを配信する前に必ずこのコードを通すようになります)。
+  Pagesプロジェクトの
   Settings → Variables and Secrets で `SITE_PASSWORD`(必須)と `SITE_USER`(任意、未設定なら
   `admin`)を設定すると、ブラウザで開いたときにユーザー名とパスワードを求められるようになります。
   設定しなければ今まで通り誰でも開けます。
