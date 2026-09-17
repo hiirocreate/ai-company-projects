@@ -432,7 +432,7 @@ async function autoAdvanceProject(project, dispatch) {
   } else if (employeeKey === 'D') {
     await dispatch({ type: 'DECIDE', payload: { projectId: project.id, decision: data.decision || 'HOLD', reason: data.reason || '', auto: true } })
   } else if (employeeKey === 'E') {
-    await dispatch({ type: 'ADVANCE_DEV', payload: { projectId: project.id, note: data.note || '', code: data.code || '', sql: data.sql || '', manual: data.manual || '', needsBackend: !!data.needsBackend, score: Number(data.score) || 0, review: data.review || '', auto: true } })
+    await dispatch({ type: 'ADVANCE_DEV', payload: { projectId: project.id, note: data.note || '', html: data.html || '', css: data.css || '', js: data.js || '', sql: data.sql || '', manual: data.manual || '', needsBackend: !!data.needsBackend, score: Number(data.score) || 0, review: data.review || '', auto: true } })
   } else if (employeeKey === 'F') {
     await dispatch({ type: 'ADVANCE_SALES', payload: { projectId: project.id, note: data.note || '', posts: Array.isArray(data.posts) ? data.posts : [], outreach: data.outreach || '', score: Number(data.score) || 0, customerAcquired: false, review: data.review || '', auto: true } })
   }
@@ -529,9 +529,9 @@ function useCompanyState() {
         await logActivity('D', `${auto ? '🤖自動：' : ''}${log}`)
         if (reason) await logActivity('D', `📋 判断理由：${reason}`)
       } else if (type === 'ADVANCE_DEV') {
-        const { projectId, note, code, sql, manual, needsBackend, score, review, auto } = payload
+        const { projectId, note, html, css, js, sql, manual, needsBackend, score, review, auto } = payload
         const project = findProject(projectId)
-        const { error } = await sb.from('projects').update({ stage: 'SALES', notes: { ...project?.notes, development: note, code, sql, manual, needsBackend, reviews: { ...project?.notes?.reviews, E: review } }, scores: { ...project?.scores, development: score }, updated_at: nowIso() }).eq('id', projectId)
+        const { error } = await sb.from('projects').update({ stage: 'SALES', notes: { ...project?.notes, development: note, html, css, js, sql, manual, needsBackend, reviews: { ...project?.notes?.reviews, E: review } }, scores: { ...project?.scores, development: score }, updated_at: nowIso() }).eq('id', projectId)
         if (error) throw error
         await logActivity('E', `${auto ? '🤖自動：' : ''}開発が完了しました（${project?.title ?? projectId}）${sql ? '(Supabase連携あり)' : ''}`)
         if (review) await logActivity('E', `🔍 Dの確認：${review}`)
@@ -1096,54 +1096,143 @@ function downloadBlob(blob, filename) {
   setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 
-// 企画書(docx)を生成 ― すでに保存済みのデータだけを使う。追加のAI呼び出しは発生しない。
-async function generateProposalDocx(project) {
+// 企画書・提案書用の構成要素をAIに整理させる(この呼び出しだけ追加のAI呼び出しが発生する。
+// 1回の結果はProjectDetailModal内でキャッシュし、企画書とpptxの両方の生成に使い回す)。
+async function generateDocContent(project) {
   const notes = project.notes || {}
-  const { Document, Packer, Paragraph, TextRun, HeadingLevel } = docx
-  const heading = (text) => new Paragraph({ text, heading: HeadingLevel.HEADING_2, spacing: { before: 240, after: 120 } })
+  const history = project.approvalHistory || []
+  const lastDecision = history.length ? history[history.length - 1] : null
+  const ctx = {
+    title: project.title, problem: project.problem, target: project.target, solution: project.solution,
+    planningNote: notes.planning, marketNote: notes.market, moneyNote: notes.money,
+    monetizationScore: project.scores?.monetization,
+    decision: project.decision || (lastDecision ? lastDecision.decision : null),
+    decisionReason: lastDecision ? lastDecision.reason : null,
+    developmentNote: notes.development, developmentScore: project.scores?.development,
+    salesNote: notes.sales, salesScore: project.scores?.sales,
+  }
+  const { data } = await callAI('DOC', ctx)
+  return data || {}
+}
+
+// 企画書(docx)を生成 ― DOC担当が整理した構成要素を、章立てされたビジネス文書として組み立てる。
+async function generateProposalDocx(project, doc) {
+  const { Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableRow, TableCell, WidthType } = docx
+  const heading = (text) => new Paragraph({ text, heading: HeadingLevel.HEADING_2, spacing: { before: 280, after: 120 } })
   const body = (text) => new Paragraph({ children: [new TextRun(text || '(未記入)')], spacing: { after: 200 } })
+  const bullet = (text) => new Paragraph({ text, bullet: { level: 0 }, spacing: { after: 80 } })
+  const cell = (text, isHeader) => new TableCell({
+    children: [new Paragraph({ children: [new TextRun({ text: String(text ?? ''), bold: !!isHeader })] })],
+    width: { size: 33, type: WidthType.PERCENTAGE },
+  })
+
+  const metricsTable = new Table({
+    width: { size: 100, type: WidthType.PERCENTAGE },
+    rows: [
+      new TableRow({ children: [cell('指標', true), cell('スコア', true)] }),
+      new TableRow({ children: [cell('Monetization Score'), cell(project.scores?.monetization ?? '未評価')] }),
+      new TableRow({ children: [cell('Code Quality Score'), cell(project.scores?.development ?? '未評価')] }),
+      new TableRow({ children: [cell('Lead Score'), cell(project.scores?.sales ?? '未評価')] }),
+    ],
+  })
+
+  const competitorRows = [new TableRow({ children: [cell('名称', true), cell('強み', true), cell('価格帯', true)] })]
+  ;(doc.competitorTable || []).forEach((c) => {
+    competitorRows.push(new TableRow({ children: [cell(c.name), cell(c.strength), cell(c.price)] }))
+  })
+  const competitorTable = new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: competitorRows })
+
   const blocks = [
     new Paragraph({ text: project.title, heading: HeadingLevel.TITLE }),
-    new Paragraph({ text: `プロジェクトID：${project.id}　ステータス：${project.stage}`, spacing: { after: 300 } }),
-    heading('解決する問題'), body(project.problem),
+    new Paragraph({ children: [new TextRun({ text: doc.tagline || '', italics: true })], spacing: { after: 300 } }),
+    heading('エグゼクティブサマリー'), body(doc.executiveSummary),
+    heading('課題'), body(doc.problemDetail || project.problem),
     heading('対象ユーザー'), body(project.target),
-    heading('提案する解決方法'), body(project.solution),
+    heading('解決策'), body(doc.solutionDetail || project.solution),
+    heading('市場規模'), body(doc.marketSizeFigure),
+    heading('競合比較'), competitorTable, new Paragraph({ text: '', spacing: { after: 200 } }),
+    heading('価格モデル・収益見込み'), body(doc.pricingModel), body(doc.revenueProjection),
+    heading('主要指標'), metricsTable, new Paragraph({ text: '', spacing: { after: 200 } }),
+    heading('開発状況'), body(doc.developmentSummary || project.notes?.development),
+    heading('営業状況'), body(doc.salesSummary || project.notes?.sales),
+    heading('次のアクション'),
+    ...(doc.nextSteps && doc.nextSteps.length ? doc.nextSteps.map((s) => bullet(s)) : [body('')]),
   ]
-  if (notes.planning) { blocks.push(heading('企画内容(B)')); blocks.push(body(notes.planning)) }
-  if (notes.market) { blocks.push(heading('市場調査(C)')); blocks.push(body(notes.market)) }
-  if (notes.money) { blocks.push(heading(`収益モデル(C)${project.scores?.monetization ? ` — Monetization Score ${project.scores.monetization}` : ''}`)); blocks.push(body(notes.money)) }
-  if (project.approvalHistory && project.approvalHistory.length) {
-    blocks.push(heading('承認判断の履歴(D)'))
-    project.approvalHistory.forEach((h) => blocks.push(body(`${h.time}　${h.decision}${h.reason ? `：${h.reason}` : ''}`)))
-  }
-  if (notes.development) { blocks.push(heading(`開発概要(E)${project.scores?.development ? ` — Score ${project.scores.development}` : ''}`)); blocks.push(body(notes.development)) }
-  if (notes.sales) { blocks.push(heading(`営業結果(F)${project.scores?.sales ? ` — Score ${project.scores.sales}` : ''}`)); blocks.push(body(notes.sales)) }
 
-  const doc = new Document({ sections: [{ children: blocks }] })
-  const blob = await Packer.toBlob(doc)
+  const document = new Document({ sections: [{ children: blocks }] })
+  const blob = await Packer.toBlob(document)
   downloadBlob(blob, `${project.title}_企画書.docx`)
 }
 
-// 提案書(pptx)を生成 ― 同じくすでに保存済みのデータだけを使う。
-function generateProposalPptx(project) {
-  const notes = project.notes || {}
+// 提案書(pptx)を生成 ― 表紙・図表付きのデザインされたスライドとして組み立てる。
+function generateProposalPptx(project, doc) {
   const pres = new PptxGenJS()
-  const title = pres.addSlide()
-  title.addText(project.title, { x: 0.5, y: 1.8, w: 9, h: 1.2, fontSize: 32, bold: true, align: 'center', color: '262433' })
-  title.addText(project.target || '', { x: 0.5, y: 3.0, w: 9, h: 0.6, fontSize: 16, align: 'center', color: '6f6c80' })
+  const ACCENT = '3F7FD1'
+  const DARK = '262433'
 
-  const addSlide = (heading, bodyText) => {
+  const s0 = pres.addSlide()
+  s0.background = { color: ACCENT }
+  s0.addText(project.title, { x: 0.6, y: 1.9, w: 8.8, h: 1.1, fontSize: 34, bold: true, color: 'FFFFFF' })
+  s0.addText(doc.tagline || '', { x: 0.6, y: 3.1, w: 8.8, h: 0.6, fontSize: 16, italic: true, color: 'FFFFFF' })
+
+  const sectionSlide = (label, title) => {
     const s = pres.addSlide()
-    s.addText(heading, { x: 0.5, y: 0.4, w: 9, h: 0.6, fontSize: 22, bold: true, color: '262433' })
-    s.addText(bodyText || '(未記入)', { x: 0.5, y: 1.2, w: 9, h: 3.8, fontSize: 14, valign: 'top', color: '262433' })
+    s.background = { color: 'FFFFFF' }
+    s.addShape(pres.ShapeType.rect, { x: 0, y: 0, w: 10, h: 0.9, fill: { color: ACCENT } })
+    s.addText(label, { x: 0.5, y: 0.12, w: 9, h: 0.3, fontSize: 11, color: 'FFFFFF', bold: true })
+    s.addText(title, { x: 0.5, y: 0.38, w: 9, h: 0.48, fontSize: 24, color: 'FFFFFF', bold: true })
+    return s
   }
-  addSlide('課題', project.problem)
-  addSlide('対象ユーザー / 解決策', `${project.target || ''}\n\n${project.solution || ''}`)
-  if (notes.planning) addSlide('企画内容', notes.planning)
-  if (notes.market) addSlide('市場調査', notes.market)
-  if (notes.money) addSlide(`収益モデル${project.scores?.monetization ? `（Monetization Score ${project.scores.monetization}）` : ''}`, notes.money)
-  if (notes.development) addSlide('開発状況', notes.development)
-  if (notes.sales) addSlide('営業戦略', notes.sales)
+
+  const s1 = sectionSlide('OVERVIEW', 'エグゼクティブサマリー')
+  s1.addText(doc.executiveSummary || '', { x: 0.6, y: 1.3, w: 8.8, h: 3.8, fontSize: 16, color: DARK, valign: 'top' })
+
+  const s2 = sectionSlide('PROBLEM & SOLUTION', '課題と解決策')
+  s2.addText('課題', { x: 0.6, y: 1.2, w: 4.2, h: 0.4, fontSize: 14, bold: true, color: ACCENT })
+  s2.addText(doc.problemDetail || project.problem || '', { x: 0.6, y: 1.6, w: 4.1, h: 3.3, fontSize: 13, color: DARK, valign: 'top' })
+  s2.addText('解決策', { x: 5.2, y: 1.2, w: 4.2, h: 0.4, fontSize: 14, bold: true, color: ACCENT })
+  s2.addText(doc.solutionDetail || project.solution || '', { x: 5.2, y: 1.6, w: 4.2, h: 3.3, fontSize: 13, color: DARK, valign: 'top' })
+
+  const s3 = sectionSlide('MARKET', '市場・競合分析')
+  s3.addText(doc.marketSizeFigure || '', { x: 0.6, y: 1.15, w: 8.8, h: 0.7, fontSize: 14, color: DARK, valign: 'top' })
+  const compRows = [
+    [
+      { text: '名称', options: { bold: true, fill: { color: ACCENT }, color: 'FFFFFF' } },
+      { text: '強み', options: { bold: true, fill: { color: ACCENT }, color: 'FFFFFF' } },
+      { text: '価格帯', options: { bold: true, fill: { color: ACCENT }, color: 'FFFFFF' } },
+    ],
+    ...(doc.competitorTable || []).map((c) => [c.name || '', c.strength || '', c.price || '']),
+  ]
+  s3.addTable(compRows, { x: 0.6, y: 2.0, w: 8.8, fontSize: 12, color: DARK, autoPage: false })
+
+  const s4 = sectionSlide('METRICS', '主要指標')
+  const metricsData = [{
+    name: 'Score',
+    labels: ['Monetization', 'Code Quality', 'Lead'],
+    values: [project.scores?.monetization || 0, project.scores?.development || 0, project.scores?.sales || 0],
+  }]
+  s4.addChart(pres.ChartType.bar, metricsData, { x: 0.6, y: 1.3, w: 8.8, h: 3.8, barColor: ACCENT, showValue: true, valAxisMaxVal: 100 })
+
+  const s5 = sectionSlide('BUSINESS MODEL', '収益モデル')
+  s5.addText('価格モデル', { x: 0.6, y: 1.2, w: 8.8, h: 0.35, fontSize: 14, bold: true, color: ACCENT })
+  s5.addText(doc.pricingModel || '', { x: 0.6, y: 1.6, w: 8.8, h: 0.9, fontSize: 13, color: DARK, valign: 'top' })
+  s5.addText('収益見込み', { x: 0.6, y: 2.6, w: 8.8, h: 0.35, fontSize: 14, bold: true, color: ACCENT })
+  s5.addText(doc.revenueProjection || '', { x: 0.6, y: 3.0, w: 8.8, h: 0.9, fontSize: 13, color: DARK, valign: 'top' })
+
+  const s6 = sectionSlide('STATUS', '開発・営業状況')
+  s6.addText('開発状況', { x: 0.6, y: 1.2, w: 8.8, h: 0.35, fontSize: 14, bold: true, color: ACCENT })
+  s6.addText(doc.developmentSummary || project.notes?.development || '', { x: 0.6, y: 1.6, w: 8.8, h: 1.1, fontSize: 13, color: DARK, valign: 'top' })
+  s6.addText('営業状況', { x: 0.6, y: 2.8, w: 8.8, h: 0.35, fontSize: 14, bold: true, color: ACCENT })
+  s6.addText(doc.salesSummary || project.notes?.sales || '', { x: 0.6, y: 3.2, w: 8.8, h: 1.1, fontSize: 13, color: DARK, valign: 'top' })
+
+  const s7 = sectionSlide('NEXT STEPS', '次のアクション')
+  const steps = doc.nextSteps && doc.nextSteps.length ? doc.nextSteps : ['(未定)']
+  steps.forEach((step, i) => {
+    const y = 1.3 + i * 1.0
+    s7.addShape(pres.ShapeType.ellipse, { x: 0.6, y, w: 0.6, h: 0.6, fill: { color: ACCENT } })
+    s7.addText(String(i + 1), { x: 0.6, y, w: 0.6, h: 0.6, fontSize: 20, bold: true, color: 'FFFFFF', align: 'center', valign: 'middle' })
+    s7.addText(step, { x: 1.4, y, w: 7.8, h: 0.6, fontSize: 15, color: DARK, valign: 'middle' })
+  })
 
   pres.writeFile({ fileName: `${project.title}_提案書.pptx` })
 }
@@ -1152,7 +1241,13 @@ function generateProposalPptx(project) {
 async function generateCodeZip(project) {
   const notes = project.notes || {}
   const zip = new JSZip()
-  zip.file('index.html', notes.code || '<!-- コードが生成されていません -->')
+  if (notes.html) {
+    zip.file('index.html', notes.html)
+    if (notes.css) zip.file('style.css', notes.css)
+    if (notes.js) zip.file('script.js', notes.js)
+  } else {
+    zip.file('index.html', notes.code || '<!-- コードが生成されていません -->')
+  }
   if (notes.sql) zip.file('schema.sql', notes.sql)
   zip.file('MANUAL.md', notes.manual || `# ${project.title}\n\n## 開発メモ\n${notes.development || '(なし)'}\n`)
   const blob = await zip.generateAsync({ type: 'blob' })
@@ -1188,6 +1283,7 @@ function ProjectDetailModal({ project, dispatch, onClose }) {
   const canFreeze = project.stage !== 'COMPLETED' && project.stage !== 'REJECTED'
   const [busy, setBusy] = useState('')
   const [genError, setGenError] = useState('')
+  const docContentRef = useRef(null)
 
   const runGenerate = async (kind, fn) => {
     setBusy(kind); setGenError('')
@@ -1198,6 +1294,13 @@ function ProjectDetailModal({ project, dispatch, onClose }) {
     } finally {
       setBusy('')
     }
+  }
+
+  const getDocContent = async () => {
+    if (docContentRef.current) return docContentRef.current
+    const content = await generateDocContent(project)
+    docContentRef.current = content
+    return content
   }
 
   return (
@@ -1214,11 +1317,11 @@ function ProjectDetailModal({ project, dispatch, onClose }) {
         )}
 
         <div className="field">
-          <label>📦 書類を生成(この端末上で作成・すでに保存済みの内容のみ使用)</label>
+          <label>📦 書類を生成(企画書・提案書はAIが内容を一度整理してから作成します。コードは保存済みの内容をそのまま使用)</label>
           <div className="doc-export-row">
-            <button className="btn btn-small btn-ghost" disabled={!!busy} onClick={() => runGenerate('企画書', () => generateProposalDocx(project))}>{busy === '企画書' ? '生成中…' : '📄 企画書(docx)'}</button>
-            <button className="btn btn-small btn-ghost" disabled={!!busy} onClick={() => runGenerate('提案書', () => generateProposalPptx(project))}>{busy === '提案書' ? '生成中…' : '📊 提案書(pptx)'}</button>
-            {notes.code && (
+            <button className="btn btn-small btn-ghost" disabled={!!busy} onClick={() => runGenerate('企画書', async () => { const doc = await getDocContent(); await generateProposalDocx(project, doc) })}>{busy === '企画書' ? '生成中…' : '📄 企画書(docx)'}</button>
+            <button className="btn btn-small btn-ghost" disabled={!!busy} onClick={() => runGenerate('提案書', async () => { const doc = await getDocContent(); generateProposalPptx(project, doc) })}>{busy === '提案書' ? '生成中…' : '📊 提案書(pptx)'}</button>
+            {(notes.html || notes.code) && (
               <button className="btn btn-small btn-ghost" disabled={!!busy} onClick={() => runGenerate('コード一式', () => generateCodeZip(project))}>{busy === 'コード一式' ? '生成中…' : '💾 コード一式(zip)'}</button>
             )}
           </div>
@@ -1246,11 +1349,32 @@ function ProjectDetailModal({ project, dispatch, onClose }) {
 
         {notes.development && <div className="field"><label>💻 開発メモ(E){project.scores.development ? ` — Score ${project.scores.development}` : ''}</label><div className="detail-text">{notes.development}</div></div>}
         {notes.needsBackend && <div className="review-box">⚠️ このプロトタイプはSupabaseだけでは実現できない部分を含みます(ダミー部分あり)。開発メモを参照してください。</div>}
-        {notes.code && (
+        {notes.code && !notes.html && (
           <div className="field">
-            <label>プロトタイプのコード(E)</label>
+            <label>プロトタイプのコード(E・旧形式)</label>
             <textarea className="code-area" value={notes.code} readOnly />
             <div className="field-actions"><CopyButton text={notes.code} /></div>
+          </div>
+        )}
+        {notes.html && (
+          <div className="field">
+            <label>index.html(E)</label>
+            <textarea className="code-area" value={notes.html} readOnly />
+            <div className="field-actions"><CopyButton text={notes.html} /></div>
+          </div>
+        )}
+        {notes.css && (
+          <div className="field">
+            <label>style.css(E)</label>
+            <textarea className="code-area" value={notes.css} readOnly />
+            <div className="field-actions"><CopyButton text={notes.css} /></div>
+          </div>
+        )}
+        {notes.js && (
+          <div className="field">
+            <label>script.js(E)</label>
+            <textarea className="code-area" value={notes.js} readOnly />
+            <div className="field-actions"><CopyButton text={notes.js} /></div>
           </div>
         )}
         {notes.sql && (
@@ -1309,7 +1433,9 @@ function AdvanceModal({ project, dispatch, onClose }) {
   const [market, setMarket] = useState('')
   const [feasible, setFeasible] = useState(true)
   const [infeasibleReason, setInfeasibleReason] = useState('')
-  const [code, setCode] = useState('')
+  const [html, setHtml] = useState('')
+  const [css, setCss] = useState('')
+  const [js, setJs] = useState('')
   const [sql, setSql] = useState('')
   const [manual, setManual] = useState('')
   const [needsBackend, setNeedsBackend] = useState(false)
@@ -1340,7 +1466,9 @@ function AdvanceModal({ project, dispatch, onClose }) {
         setDecision(data.decision || null); setReason(data.reason || '')
       } else if (employeeKey === 'E') {
         setNote(data.note || '')
-        if (data.code !== undefined) setCode(data.code || '')
+        if (data.html !== undefined) setHtml(data.html || '')
+        if (data.css !== undefined) setCss(data.css || '')
+        if (data.js !== undefined) setJs(data.js || '')
         if (data.sql !== undefined) setSql(data.sql || '')
         if (data.manual !== undefined) setManual(data.manual || '')
         setNeedsBackend(!!data.needsBackend)
@@ -1366,7 +1494,7 @@ function AdvanceModal({ project, dispatch, onClose }) {
     if (stage === 'IDEA') dispatch({ type: 'ADVANCE_PLAN', payload: { projectId: project.id, note } })
     else if (stage === 'PLANNING') dispatch({ type: 'ADVANCE_MONEY', payload: { projectId: project.id, note, market, score: Number(score) || 0, feasible, reason: infeasibleReason } })
     else if (stage === 'MONEY' || stage === 'APPROVAL') dispatch({ type: 'DECIDE', payload: { projectId: project.id, decision, reason } })
-    else if (stage === 'DEVELOPMENT') dispatch({ type: 'ADVANCE_DEV', payload: { projectId: project.id, note, code, sql, manual, needsBackend, score: Number(score) || 0 } })
+    else if (stage === 'DEVELOPMENT') dispatch({ type: 'ADVANCE_DEV', payload: { projectId: project.id, note, html, css, js, sql, manual, needsBackend, score: Number(score) || 0 } })
     else if (stage === 'SALES') dispatch({ type: 'ADVANCE_SALES', payload: { projectId: project.id, note, posts, outreach, score: Number(score) || 0, customerAcquired } })
     onClose()
   }
@@ -1417,9 +1545,19 @@ function AdvanceModal({ project, dispatch, onClose }) {
             <div className="field"><label>開発メモ(何を確認できるプロトタイプか)</label><textarea value={note} onChange={(e) => setNote(e.target.value)} /></div>
             {needsBackend && <div className="review-box">⚠️ このアイデアはSupabaseだけでは実現できない部分があります。コード内のどこがダミーかは開発メモを確認してください。</div>}
             <div className="field">
-              <label>プロトタイプのコード(単一HTMLファイル)</label>
-              <textarea className="code-area" value={code} onChange={(e) => setCode(e.target.value)} spellCheck={false} />
-              <div className="field-actions"><CopyButton text={code} /></div>
+              <label>index.html</label>
+              <textarea className="code-area" value={html} onChange={(e) => setHtml(e.target.value)} spellCheck={false} />
+              <div className="field-actions"><CopyButton text={html} /></div>
+            </div>
+            <div className="field">
+              <label>style.css</label>
+              <textarea className="code-area" value={css} onChange={(e) => setCss(e.target.value)} spellCheck={false} />
+              <div className="field-actions"><CopyButton text={css} /></div>
+            </div>
+            <div className="field">
+              <label>script.js</label>
+              <textarea className="code-area" value={js} onChange={(e) => setJs(e.target.value)} spellCheck={false} />
+              <div className="field-actions"><CopyButton text={js} /></div>
             </div>
             {sql && (
               <div className="field">
