@@ -533,6 +533,8 @@ function useCompanyState() {
         const { error } = await sb.from('projects').delete().eq('id', projectId)
         if (error) throw error
         await logActivity(null, `🗑 プロジェクトを削除しました（${project?.title ?? projectId}）`)
+      } else if (type === 'LOG_MESSAGE') {
+        await logActivity(payload.key ?? null, payload.message)
       }
       await refresh()
     } catch (e) {
@@ -1339,7 +1341,10 @@ function App() {
         if (autoProcessingRef.current.has(project.id)) continue
         autoProcessingRef.current.add(project.id)
         autoAdvanceProject(project, dispatch)
-          .catch((e) => console.error('自動パイプラインでエラー:', project.id, e))
+          .catch((e) => {
+            console.error('自動パイプラインでエラー:', project.id, e)
+            dispatch({ type: 'LOG_MESSAGE', payload: { key: stageEmployeeKey(project.stage), message: `⚠️ 自動処理に失敗しました（${project.title}）：${e.message || e}` } })
+          })
           .finally(() => autoProcessingRef.current.delete(project.id))
       }
     }
