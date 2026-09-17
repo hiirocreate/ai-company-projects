@@ -428,7 +428,7 @@ async function autoAdvanceProject(project, dispatch) {
   if (employeeKey === 'B') {
     await dispatch({ type: 'ADVANCE_PLAN', payload: { projectId: project.id, note: data.note || '', review: data.review || '', auto: true } })
   } else if (employeeKey === 'C') {
-    await dispatch({ type: 'ADVANCE_MONEY', payload: { projectId: project.id, note: data.note || '', market: data.market || '', score: Number(data.score) || 0, review: data.review || '', auto: true } })
+    await dispatch({ type: 'ADVANCE_MONEY', payload: { projectId: project.id, note: data.note || '', market: data.market || '', score: Number(data.score) || 0, feasible: data.feasible !== false, reason: data.reason || '', review: data.review || '', auto: true } })
   } else if (employeeKey === 'D') {
     await dispatch({ type: 'DECIDE', payload: { projectId: project.id, decision: data.decision || 'HOLD', reason: data.reason || '', auto: true } })
   } else if (employeeKey === 'E') {
@@ -487,14 +487,28 @@ function useCompanyState() {
         await logActivity('B', `${auto ? '🤖自動：' : ''}企画を完成させました（${project?.title ?? projectId}）`)
         if (review) await logActivity('B', `🔍 Aの確認：${review}`)
       } else if (type === 'ADVANCE_MONEY') {
-        const { projectId, note, market, score, review, auto } = payload
+        const { projectId, note, market, score, feasible, reason, review, auto } = payload
         const project = findProject(projectId)
-        const { error } = await sb.from('projects').update({ stage: 'MONEY', notes: { ...project?.notes, money: note, market, reviews: { ...project?.notes?.reviews, C: review } }, scores: { ...project?.scores, monetization: score }, updated_at: nowIso() }).eq('id', projectId)
-        if (error) throw error
-        await logActivity('C', `${auto ? '🤖自動：' : ''}Monetization Score ${score}（${project?.title ?? projectId}）`)
-        if (note) await logActivity('C', `💰 判断根拠：${note}`)
-        if (market) await logActivity('C', `📊 市場調査：${market}`)
-        if (review) await logActivity('C', `🔍 Bの確認：${review}`)
+        if (feasible === false) {
+          const historyEntry = { decision: 'NEEDS_REVISION', reason: reason || 'マネタイズ不可と判断', time: timeLabel(), by: 'C' }
+          const { error } = await sb.from('projects').update({
+            stage: 'IDEA',
+            notes: { ...project?.notes, money: note, market, reviews: { ...project?.notes?.reviews, C: review } },
+            scores: { ...project?.scores, monetization: score },
+            approval_history: [...(project?.approvalHistory || []), historyEntry],
+            updated_at: nowIso(),
+          }).eq('id', projectId)
+          if (error) throw error
+          await logActivity('C', `${auto ? '🤖自動：' : ''}🔁 マネタイズ不可と判断、企画(B)へ差し戻し（${project?.title ?? projectId}）：${reason}`)
+          if (review) await logActivity('C', `🔍 Bの確認：${review}`)
+        } else {
+          const { error } = await sb.from('projects').update({ stage: 'MONEY', notes: { ...project?.notes, money: note, market, reviews: { ...project?.notes?.reviews, C: review } }, scores: { ...project?.scores, monetization: score }, updated_at: nowIso() }).eq('id', projectId)
+          if (error) throw error
+          await logActivity('C', `${auto ? '🤖自動：' : ''}Monetization Score ${score}（${project?.title ?? projectId}）`)
+          if (note) await logActivity('C', `💰 判断根拠：${note}`)
+          if (market) await logActivity('C', `📊 市場調査：${market}`)
+          if (review) await logActivity('C', `🔍 Bの確認：${review}`)
+        }
       } else if (type === 'DECIDE') {
         const { projectId, decision, reason, auto } = payload
         const project = findProject(projectId)
@@ -1293,6 +1307,8 @@ function ProjectDetailModal({ project, dispatch, onClose }) {
 function AdvanceModal({ project, dispatch, onClose }) {
   const [note, setNote] = useState('')
   const [market, setMarket] = useState('')
+  const [feasible, setFeasible] = useState(true)
+  const [infeasibleReason, setInfeasibleReason] = useState('')
   const [code, setCode] = useState('')
   const [sql, setSql] = useState('')
   const [manual, setManual] = useState('')
@@ -1337,6 +1353,8 @@ function AdvanceModal({ project, dispatch, onClose }) {
       } else {
         setNote(data.note || '')
         if (data.market !== undefined) setMarket(data.market || '')
+        if (data.feasible !== undefined) setFeasible(data.feasible !== false)
+        if (data.reason !== undefined) setInfeasibleReason(data.reason || '')
         if (data.score !== undefined) setScore(String(data.score))
       }
       if (data.review) setAiReview(data.review)
@@ -1346,7 +1364,7 @@ function AdvanceModal({ project, dispatch, onClose }) {
 
   const submit = () => {
     if (stage === 'IDEA') dispatch({ type: 'ADVANCE_PLAN', payload: { projectId: project.id, note } })
-    else if (stage === 'PLANNING') dispatch({ type: 'ADVANCE_MONEY', payload: { projectId: project.id, note, market, score: Number(score) || 0 } })
+    else if (stage === 'PLANNING') dispatch({ type: 'ADVANCE_MONEY', payload: { projectId: project.id, note, market, score: Number(score) || 0, feasible, reason: infeasibleReason } })
     else if (stage === 'MONEY' || stage === 'APPROVAL') dispatch({ type: 'DECIDE', payload: { projectId: project.id, decision, reason } })
     else if (stage === 'DEVELOPMENT') dispatch({ type: 'ADVANCE_DEV', payload: { projectId: project.id, note, code, sql, manual, needsBackend, score: Number(score) || 0 } })
     else if (stage === 'SALES') dispatch({ type: 'ADVANCE_SALES', payload: { projectId: project.id, note, posts, outreach, score: Number(score) || 0, customerAcquired } })
@@ -1378,6 +1396,10 @@ function AdvanceModal({ project, dispatch, onClose }) {
             <div className="field"><label>収益モデル・検討メモ</label><textarea value={note} onChange={(e) => setNote(e.target.value)} /></div>
             <div className="field"><label>市場調査メモ(市場規模・競合・支払意欲)</label><textarea value={market} onChange={(e) => setMarket(e.target.value)} /></div>
             <div className="field"><label>Monetization Score(0〜100)</label><input type="number" min="0" max="100" value={score} onChange={(e) => setScore(e.target.value)} /></div>
+            <label className="checkbox-row"><input type="checkbox" checked={!feasible} onChange={(e) => setFeasible(!e.target.checked)} />マネタイズ不可能と判断し、企画(B)へ差し戻す</label>
+            {!feasible && (
+              <div className="field"><label>差し戻し理由</label><textarea value={infeasibleReason} onChange={(e) => setInfeasibleReason(e.target.value)} /></div>
+            )}
           </>
         )}
 
