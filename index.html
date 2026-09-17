@@ -408,6 +408,13 @@ function stageEmployeeKey(stage) {
   return null
 }
 
+function getLatestRevisionReason(project) {
+  const history = project.approvalHistory
+  if (!history || !history.length) return null
+  const last = history[history.length - 1]
+  return last && last.decision === 'NEEDS_REVISION' ? last.reason : null
+}
+
 async function autoAdvanceProject(project, dispatch) {
   const employeeKey = stageEmployeeKey(project.stage)
   if (!employeeKey) return
@@ -415,6 +422,7 @@ async function autoAdvanceProject(project, dispatch) {
     title: project.title, problem: project.problem, target: project.target, solution: project.solution,
     planningNote: project.notes.planning, marketNote: project.notes.market, moneyNote: project.notes.money,
     developmentNote: project.notes.development, score: project.scores.monetization,
+    revisionReason: employeeKey === 'B' ? getLatestRevisionReason(project) : null,
   }
   const { data } = await callAI(employeeKey, ctx)
   if (employeeKey === 'B') {
@@ -495,7 +503,7 @@ function useCompanyState() {
         let nextStage = project.stage
         let log = ''
         if (decision === 'APPROVED') { nextStage = 'DEVELOPMENT'; log = `APPROVED — 開発を開始します（${project.title}）` }
-        else if (decision === 'NEEDS_REVISION') { nextStage = 'PLANNING'; log = `NEEDS_REVISION — 企画工程へ差し戻し（${project.title}）` }
+        else if (decision === 'NEEDS_REVISION') { nextStage = 'IDEA'; log = `NEEDS_REVISION — 企画工程(B)へ差し戻し（${project.title}）` }
         else if (decision === 'HOLD') { nextStage = 'APPROVAL'; log = `HOLD — 現時点では保留（${project.title}）` }
         else { nextStage = 'REJECTED'; log = `REJECTED（${project.title}）` }
         const { error } = await sb.from('projects').update({
@@ -1304,12 +1312,13 @@ function AdvanceModal({ project, dispatch, onClose }) {
   const runAI = async () => {
     setAiLoading(true); setAiError(''); setAiProvider(''); setAiReview('')
     try {
+      const employeeKey = stage === 'IDEA' ? 'B' : stage === 'PLANNING' ? 'C' : (stage === 'MONEY' || stage === 'APPROVAL') ? 'D' : stage === 'DEVELOPMENT' ? 'E' : 'F'
       const ctx = {
         title: project.title, problem: project.problem, target: project.target, solution: project.solution,
         planningNote: project.notes.planning, marketNote: project.notes.market, moneyNote: project.notes.money,
         developmentNote: project.notes.development, score: project.scores.monetization,
+        revisionReason: employeeKey === 'B' ? getLatestRevisionReason(project) : null,
       }
-      const employeeKey = stage === 'IDEA' ? 'B' : stage === 'PLANNING' ? 'C' : (stage === 'MONEY' || stage === 'APPROVAL') ? 'D' : stage === 'DEVELOPMENT' ? 'E' : 'F'
       const { data, provider } = await callAI(employeeKey, ctx)
       if (employeeKey === 'D') {
         setDecision(data.decision || null); setReason(data.reason || '')
