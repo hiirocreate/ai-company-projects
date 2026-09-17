@@ -1133,22 +1133,25 @@ async function generateProposalDocx(project, doc) {
 
   const pricingTable = table(['プラン', '価格', '対象', '備考'], (doc.pricingPlans || []).map((p) => [p.planName, p.price, p.target, p.note]))
   const metricsTable = table(['指標', 'スコア'], [
-    ['Monetization Score', project.scores?.monetization ?? '未評価'],
-    ['Code Quality Score', project.scores?.development ?? '未評価'],
-    ['Lead Score', project.scores?.sales ?? '未評価'],
+    ['収益性(Monetization Score)', project.scores?.monetization ?? '未評価'],
+    ['実装完成度(Code Quality Score)', project.scores?.development ?? '未評価'],
+    ['営業確度(Lead Score)', project.scores?.sales ?? '未評価'],
   ])
 
   const blocks = [
-    new Paragraph({ text: project.title, heading: HeadingLevel.TITLE }),
+    new Paragraph({ children: [new TextRun({ text: project.title, bold: true, size: 56 })], spacing: { after: 100 } }),
     new Paragraph({ children: [new TextRun({ text: doc.tagline || '', italics: true })], spacing: { after: 300 } }),
 
+    heading('このツールとは？'), body(doc.whatIsThis || doc.executiveSummary),
     heading('エグゼクティブサマリー'), body(doc.executiveSummary),
 
     heading('課題提起'), body(doc.problemStatement || project.problem),
     body(doc.problemImpact),
 
     heading('解決策とそのロジック'), body(doc.solutionLogic || project.solution),
-    ...(doc.solutionSteps && doc.solutionSteps.length ? doc.solutionSteps.map((s, i) => bullet(`${i + 1}. ${s}`)) : []),
+    ...(doc.solutionSteps && doc.solutionSteps.length
+      ? doc.solutionSteps.map((s, i) => bullet(`${i + 1}. ${s.label || s}`))
+      : []),
     spacer(),
 
     heading('機能・強み'),
@@ -1181,7 +1184,9 @@ async function generateProposalDocx(project, doc) {
 }
 
 // 提案書(pptx)を生成 ― 一般的な提案書の型(問題提起→解決ロジック→機能→料金→競合→まとめ)で、
-// 図表・カードレイアウトを使ってスライド全体を埋めるように組み立てる。
+// 図表・カードレイアウトを使ってスライド全体を埋めるように組み立てる。前提知識のない読み手でも
+// 「このツールが何か」から理解できるよう、表紙の直後に説明スライドを挟む。絵文字は使わず、
+// 番号バッジ・アクセントバー・色面など図形ベースの要素で視覚的な情報量を持たせる。
 function generateProposalPptx(project, doc) {
   const pres = new PptxGenJS()
   const ACCENT = '3F7FD1'
@@ -1198,6 +1203,14 @@ function generateProposalPptx(project, doc) {
     s.addText(title, { x: 0.5, y: 0.4, w: 9, h: 0.55, fontSize: 25, color: 'FFFFFF', bold: true })
     return s
   }
+  // 番号バッジ付きカード(絵文字の代わりに大きな数字を視覚要素にする)
+  const numberCard = (s, x, y, w, h, num, title, detail, opts) => {
+    s.addShape(pres.ShapeType.rect, { x, y, w, h, fill: { color: (opts && opts.fill) || ACCENT_SOFT }, line: { color: 'D9D7E3', width: 0.5 } })
+    s.addShape(pres.ShapeType.rect, { x, y, w: 0.08, h, fill: { color: ACCENT } })
+    s.addText(num, { x: x + 0.25, y: y + 0.15, w: w - 0.4, h: 0.7, fontSize: 30, bold: true, color: 'C6D9F5' })
+    if (title) s.addText(title, { x: x + 0.25, y: y + 0.8, w: w - 0.5, h: 0.4, fontSize: (opts && opts.titleSize) || 14, bold: true, color: ACCENT })
+    s.addText(detail || '', { x: x + 0.25, y: y + 1.2, w: w - 0.5, h: h - 1.3, fontSize: (opts && opts.detailSize) || 12, color: DARK, valign: 'top' })
+  }
   const card = (s, x, y, w, h, title, detail, opts) => {
     s.addShape(pres.ShapeType.rect, { x, y, w, h, fill: { color: (opts && opts.fill) || ACCENT_SOFT }, line: { color: 'D9D7E3', width: 0.5 } })
     if (title) s.addText(title, { x: x + 0.15, y: y + 0.12, w: w - 0.3, h: 0.4, fontSize: (opts && opts.titleSize) || 14, bold: true, color: ACCENT })
@@ -1208,38 +1221,45 @@ function generateProposalPptx(project, doc) {
   const s0 = pres.addSlide()
   s0.background = { color: ACCENT }
   s0.addShape(pres.ShapeType.rect, { x: 0, y: 4.9, w: 10, h: 0.03, fill: { color: 'FFFFFF' } })
-  s0.addText(project.title, { x: 0.6, y: 1.9, w: 8.8, h: 1.1, fontSize: 34, bold: true, color: 'FFFFFF' })
+  s0.addShape(pres.ShapeType.rect, { x: 0.6, y: 1.75, w: 0.9, h: 0.08, fill: { color: 'FFFFFF' } })
+  s0.addText(project.title, { x: 0.6, y: 2.0, w: 8.8, h: 1.0, fontSize: 32, bold: true, color: 'FFFFFF' })
   s0.addText(doc.tagline || '', { x: 0.6, y: 3.05, w: 8.8, h: 0.6, fontSize: 16, italic: true, color: 'FFFFFF' })
-  s0.addText('PROPOSAL', { x: 0.6, y: 0.5, w: 8.8, h: 0.4, fontSize: 12, color: 'FFFFFF', bold: true, charSpacing: 3 })
+  s0.addText('PROPOSAL', { x: 0.6, y: 0.5, w: 8.8, h: 0.35, fontSize: 12, color: 'FFFFFF', bold: true, charSpacing: 3 })
 
-  // 課題提起(数字インパクトを大きく見せる)
+  // このツールとは？(前提知識が無い読み手向けの導入スライド。大きな引用符風の縦アクセントで強調)
+  const sIntro = sectionSlide('WHAT IS THIS', 'このツールとは？')
+  sIntro.addShape(pres.ShapeType.rect, { x: 1.0, y: 1.7, w: 0.1, h: 2.3, fill: { color: ACCENT } })
+  sIntro.addText(doc.whatIsThis || doc.executiveSummary || '', { x: 1.4, y: 1.7, w: 7.2, h: 2.3, fontSize: 20, color: DARK, valign: 'middle' })
+
+  // 課題提起(影響ボックスに左アクセントバーで視線を誘導)
   const s1 = sectionSlide('PROBLEM', '課題提起')
   s1.addText(doc.problemStatement || project.problem || '', { x: 0.6, y: 1.3, w: 8.8, h: 1.5, fontSize: 17, color: DARK, valign: 'top' })
   s1.addShape(pres.ShapeType.rect, { x: 0.6, y: 3.0, w: 8.8, h: 1.6, fill: { color: ACCENT_SOFT } })
-  s1.addText('放置した場合の影響', { x: 0.9, y: 3.2, w: 8.2, h: 0.4, fontSize: 13, bold: true, color: ACCENT })
-  s1.addText(doc.problemImpact || '', { x: 0.9, y: 3.6, w: 8.2, h: 0.9, fontSize: 15, color: DARK, valign: 'top' })
+  s1.addShape(pres.ShapeType.rect, { x: 0.6, y: 3.0, w: 0.08, h: 1.6, fill: { color: ACCENT } })
+  s1.addText('放置した場合の影響', { x: 0.95, y: 3.2, w: 8.0, h: 0.4, fontSize: 13, bold: true, color: ACCENT })
+  s1.addText(doc.problemImpact || '', { x: 0.95, y: 3.6, w: 8.0, h: 0.9, fontSize: 15, color: DARK, valign: 'top' })
 
-  // 解決ロジック(3ステップのフロー図)
+  // 解決ロジック(番号を大きく見せる3ステップフロー図)
   const s2 = sectionSlide('SOLUTION', '解決策とそのロジック')
   s2.addText(doc.solutionLogic || project.solution || '', { x: 0.6, y: 1.25, w: 8.8, h: 0.9, fontSize: 14, color: DARK, valign: 'top' })
   const steps = (doc.solutionSteps && doc.solutionSteps.length ? doc.solutionSteps : ['', '', '']).slice(0, 3)
   const stepW = 2.6
   steps.forEach((step, i) => {
     const x = 0.6 + i * (stepW + 0.5)
-    s2.addShape(pres.ShapeType.ellipse, { x, y: 2.5, w: 0.5, h: 0.5, fill: { color: ACCENT } })
-    s2.addText(String(i + 1), { x, y: 2.5, w: 0.5, h: 0.5, fontSize: 16, bold: true, color: 'FFFFFF', align: 'center', valign: 'middle' })
-    s2.addShape(pres.ShapeType.rect, { x, y: 3.15, w: stepW, h: 1.3, fill: { color: ACCENT_SOFT } })
-    s2.addText(step, { x: x + 0.1, y: 3.25, w: stepW - 0.2, h: 1.1, fontSize: 12, color: DARK, valign: 'top' })
-    if (i < 2) s2.addText('→', { x: x + stepW, y: 2.9, w: 0.5, h: 0.5, fontSize: 20, bold: true, color: SOFT, align: 'center' })
+    s2.addShape(pres.ShapeType.rect, { x, y: 2.35, w: stepW, h: 2.1, fill: { color: ACCENT_SOFT } })
+    s2.addText(`0${i + 1}`, { x: x + 0.2, y: 2.5, w: stepW - 0.4, h: 0.9, fontSize: 36, bold: true, color: ACCENT })
+    s2.addShape(pres.ShapeType.rect, { x: x + 0.2, y: 3.35, w: stepW - 0.4, h: 0.03, fill: { color: ACCENT } })
+    s2.addText(step.label || step, { x: x + 0.2, y: 3.5, w: stepW - 0.4, h: 0.85, fontSize: 12, color: DARK, valign: 'top' })
+    if (i < 2) s2.addText('→', { x: x + stepW, y: 3.1, w: 0.5, h: 0.5, fontSize: 22, bold: true, color: SOFT, align: 'center' })
   })
 
-  // 機能・強み(3カードで横幅を使い切る)
+  // 機能・強み(番号バッジ付きの3カードで横幅を使い切る)
   const s3 = sectionSlide('FEATURES', 'ツールの特長')
   const features = (doc.features && doc.features.length ? doc.features : [{}, {}, {}]).slice(0, 3)
   const fW = 2.8
   features.forEach((f, i) => {
     const x = 0.6 + i * (fW + 0.3)
-    card(s3, x, 1.3, fW, 3.6, f.title, f.detail, { detailY: 0.6 })
+    numberCard(s3, x, 1.3, fW, 3.6, `0${i + 1}`, f.title, f.detail, { detailY: 1.15 })
   })
 
   // 料金プラン(3プランをカード比較)
@@ -1271,11 +1291,11 @@ function generateProposalPptx(project, doc) {
     s5.addTable(compRows, { x: 0.6, y: 1.85, w: 8.8, fontSize: 12, color: DARK, autoPage: false })
   }
 
-  // 指標
+  // 指標(社内用語ではなく平易な日本語ラベルで表示)
   const s6 = sectionSlide('METRICS', '主要指標')
   const metricsData = [{
     name: 'Score',
-    labels: ['Monetization', 'Code Quality', 'Lead'],
+    labels: ['収益性', '実装完成度', '営業確度'],
     values: [project.scores?.monetization || 0, project.scores?.development || 0, project.scores?.sales || 0],
   }]
   s6.addChart(pres.ChartType.bar, metricsData, { x: 0.6, y: 1.3, w: 8.8, h: 3.6, barColor: ACCENT, showValue: true, valAxisMaxVal: 100 })
