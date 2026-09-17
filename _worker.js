@@ -1,4 +1,4 @@
-// AI COMPANY ― 静的サイト用Worker
+// AI COMPANY ― 静的サイト用Worker(Cloudflare Pagesの"Advanced mode"用。ファイル名は必ず _worker.js のままにすること)
 //
 // index.html(静的アセット)を配信する前に、簡易的なBasic認証でログインを求めます。
 // これにより、URLを知っているだけでは中身を見られなくなります。
