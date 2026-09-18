@@ -225,6 +225,7 @@ textarea, input, select { font-family: inherit; }
 .decision-opt.selected.rejected { border-color: var(--bad); background: var(--f-sales-soft); color: var(--bad); }
 .checkbox-row { display: flex; align-items: center; gap: 8px; font-size: 13.5px; margin-bottom: 14px; }
 .archive-card { border-left: 3px solid var(--bad); }
+.shelved-card { border-left: 3px solid var(--ink-soft); border-left-style: dashed; opacity: 0.85; }
 .reject-reason { font-size: 12.5px; background: var(--f-sales-soft); color: var(--bad); border-radius: var(--radius-sm); padding: 8px 10px; }
 .muted { color: var(--ink-soft); }
 .top-actions { display: flex; justify-content: flex-end; gap: 10px; }
@@ -519,9 +520,18 @@ function useCompanyState() {
         if (decision === 'APPROVED') { nextStage = 'DEVELOPMENT'; log = `APPROVED — 開発を開始します（${project.title}）` }
         else if (decision === 'NEEDS_REVISION') { nextStage = 'IDEA'; log = `NEEDS_REVISION — 企画工程(B)へ差し戻し（${project.title}）` }
         else if (decision === 'HOLD') { nextStage = 'APPROVAL'; log = `HOLD — 現時点では保留（${project.title}）` }
-        else { nextStage = 'REJECTED'; log = `REJECTED（${project.title}）` }
+        else {
+          const rejectedCount = (project.approvalHistory || []).filter((h) => h.decision === 'REJECTED').length + 1
+          if (rejectedCount >= 5) {
+            nextStage = 'SHELVED'
+            log = `REJECTED(${rejectedCount}回目) — 没案としてアーカイブします（${project.title}）`
+          } else {
+            nextStage = 'REJECTED'
+            log = `REJECTED(${rejectedCount}回目)（${project.title}）`
+          }
+        }
         const { error } = await sb.from('projects').update({
-          stage: nextStage, decision: decision === 'REJECTED' ? null : decision,
+          stage: nextStage, decision: (decision === 'REJECTED' || nextStage === 'SHELVED') ? null : decision,
           reject_reason: decision === 'REJECTED' ? reason : project.rejectReason,
           approval_history: [...project.approvalHistory, historyEntry], updated_at: nowIso(),
         }).eq('id', projectId)
@@ -584,16 +594,16 @@ function deriveEmployeeState(projects, key) {
 function computeCompanyStats(state) {
   const { projects } = state
   const counts = Object.fromEntries(STAGE_ORDER.map((s) => [s, 0]))
-  let completed = 0, rejected = 0, customers = 0, potentialRevenue = 0
+  let completed = 0, rejected = 0, customers = 0
   for (const p of projects) {
     if (p.stage === 'COMPLETED') { completed += 1; if (p.customerAcquired) customers += 1 }
-    else if (p.stage === 'REJECTED') rejected += 1
+    else if (p.stage === 'REJECTED' || p.stage === 'SHELVED') rejected += 1
     else if (counts[p.stage] !== undefined) counts[p.stage] += 1
-    if (p.scores?.monetization) potentialRevenue += p.scores.monetization * 3000
   }
   const health = Math.max(10, Math.min(100, 70 + completed * 6 + customers * 8 - rejected * 3))
   const level = 1 + Math.floor(completed / 2) + customers
-  return { counts, completed, rejected, customers, potentialRevenue, health, level, total: projects.length }
+  const total = projects.filter((p) => p.stage !== 'SHELVED').length // 没案はプロジェクト数に含まない
+  return { counts, completed, rejected, customers, health, level, total }
 }
 
 /* =========================================================
@@ -610,7 +620,6 @@ function CompanyHeader({ state, onOpenSettings, autoMode, onToggleAutoMode }) {
         <span className="level-pill">LEVEL {stats.level}</span>
       </div>
       <div className="company-stats">
-        <div className="stat"><div className="stat-value">{yen(stats.potentialRevenue)}</div><div className="stat-label">Revenue Potential</div></div>
         <div className="stat"><div className="stat-value">{stats.total}</div><div className="stat-label">Projects</div></div>
         <div className="stat"><div className="stat-value">{stats.customers}</div><div className="stat-label">Customers</div></div>
         <div className="stat">
@@ -941,7 +950,7 @@ function ProjectCard({ project, onAdvance, onViewDetail, onToggleFreeze, autoMod
 }
 
 function ProjectPipeline({ projects, onAdvance, onViewDetail, onToggleFreeze, autoMode }) {
-  const visible = projects.filter((p) => p.stage !== 'REJECTED')
+  const visible = projects.filter((p) => p.stage !== 'REJECTED' && p.stage !== 'SHELVED')
   if (visible.length === 0) return <div className="empty-state">まだプロジェクトがありません。「+ 新しいアイデアを登録」から始めてください。</div>
   return <div className="project-grid">{visible.map((p) => <ProjectCard key={p.id} project={p} onAdvance={onAdvance} onViewDetail={onViewDetail} onToggleFreeze={onToggleFreeze} autoMode={autoMode} />)}</div>
 }
@@ -961,6 +970,29 @@ function RejectedArchive({ projects, onReopen, onViewDetail }) {
             <div className="pc-status-row"><span className="muted" style={{ fontSize: 12 }}>REJECTED</span><button className="btn btn-small btn-ghost" onClick={(e) => { e.stopPropagation(); onReopen(p.id) }}>再評価する</button></div>
           </div>
         ))}
+      </div>
+    </>
+  )
+}
+
+function ShelvedArchive({ projects, onReopen, onViewDetail }) {
+  const shelved = projects.filter((p) => p.stage === 'SHELVED')
+  if (shelved.length === 0) return null
+  return (
+    <>
+      <div className="section-heading"><h2>没案</h2><span className="muted" style={{ fontSize: 12.5 }}>責任者に5回却下された案です。プロジェクト数には含まれません</span></div>
+      <div className="project-grid">
+        {shelved.map((p) => {
+          const rejectedCount = (p.approvalHistory || []).filter((h) => h.decision === 'REJECTED').length
+          return (
+            <div key={p.id} className="project-card archive-card shelved-card project-card-clickable" onClick={() => onViewDetail(p)}>
+              <div className="pc-id">{p.id}</div>
+              <h3>{p.title}</h3>
+              <div className="reject-reason">{p.rejectReason || '理由未記録'}</div>
+              <div className="pc-status-row"><span className="muted" style={{ fontSize: 12 }}>没案(却下{rejectedCount}回)</span><button className="btn btn-small btn-ghost" onClick={(e) => { e.stopPropagation(); onReopen(p.id) }}>再評価する</button></div>
+            </div>
+          )
+        })}
       </div>
     </>
   )
@@ -1365,7 +1397,7 @@ function ProjectDetailModal({ project, dispatch, onClose }) {
   const reviews = notes.reviews || {}
   const posts = Array.isArray(notes.posts) ? notes.posts.filter(Boolean) : []
   const isFrozen = !!notes.frozen
-  const canFreeze = project.stage !== 'COMPLETED' && project.stage !== 'REJECTED'
+  const canFreeze = project.stage !== 'COMPLETED' && project.stage !== 'REJECTED' && project.stage !== 'SHELVED'
   const [busy, setBusy] = useState('')
   const [genError, setGenError] = useState('')
   const docContentRef = useRef(null)
@@ -1392,7 +1424,7 @@ function ProjectDetailModal({ project, dispatch, onClose }) {
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal-card" onClick={(e) => e.stopPropagation()}>
         <h2>#{project.id}「{project.title}」</h2>
-        <div className="modal-sub">STATUS: {isFrozen ? '🧊 凍結中 ・ ' : ''}{project.stage}{project.customerAcquired ? ' ・ 🎉 顧客化済み' : ''}</div>
+        <div className="modal-sub">STATUS: {isFrozen ? '🧊 凍結中 ・ ' : ''}{project.stage === 'SHELVED' ? '没案' : project.stage}{project.customerAcquired ? ' ・ 🎉 顧客化済み' : ''}</div>
         {canFreeze && (
           <div className="ai-row">
             <button className="btn btn-small btn-ghost" onClick={() => dispatch({ type: 'TOGGLE_FREEZE', payload: { projectId: project.id, frozen: !isFrozen } })}>
@@ -1721,7 +1753,7 @@ function App() {
       // 引っかかりやすく、それがタイムアウト頻発の原因になりうるため)
       if (autoProcessingRef.current.size > 0) return
       const project = state.projects.find((p) => {
-        if (p.stage === 'COMPLETED' || p.stage === 'REJECTED') return false
+        if (p.stage === 'COMPLETED' || p.stage === 'REJECTED' || p.stage === 'SHELVED') return false
         if (p.stage === 'APPROVAL' && p.decision === 'HOLD') return false // HOLDは人による確認待ちのまま
         if (p.notes?.frozen) return false // 凍結中はAIを一切呼ばない
         return true
@@ -1783,6 +1815,7 @@ function App() {
           </div>
           <ProjectPipeline projects={state.projects} onAdvance={setAdvanceProject} onViewDetail={setDetailProject} onToggleFreeze={(id, frozen) => dispatch({ type: 'TOGGLE_FREEZE', payload: { projectId: id, frozen } })} autoMode={autoMode} />
           <RejectedArchive projects={state.projects} onReopen={(id) => dispatch({ type: 'REOPEN', payload: { projectId: id } })} onViewDetail={setDetailProject} />
+          <ShelvedArchive projects={state.projects} onReopen={(id) => dispatch({ type: 'REOPEN', payload: { projectId: id } })} onViewDetail={setDetailProject} />
         </>
       )}
 
