@@ -492,15 +492,23 @@ function useCompanyState() {
         const project = findProject(projectId)
         if (feasible === false) {
           const historyEntry = { decision: 'NEEDS_REVISION', reason: reason || 'マネタイズ不可と判断', time: timeLabel(), by: 'C' }
+          const setbackCount = (project?.approvalHistory || []).filter((h) => h.decision === 'REJECTED' || h.decision === 'NEEDS_REVISION').length + 1
+          const shelve = setbackCount >= 5
           const { error } = await sb.from('projects').update({
-            stage: 'IDEA',
+            stage: shelve ? 'SHELVED' : 'IDEA',
+            decision: shelve ? null : project?.decision,
+            reject_reason: shelve ? reason : project?.rejectReason,
             notes: { ...project?.notes, money: note, market, reviews: { ...project?.notes?.reviews, C: review } },
             scores: { ...project?.scores, monetization: score },
             approval_history: [...(project?.approvalHistory || []), historyEntry],
             updated_at: nowIso(),
           }).eq('id', projectId)
           if (error) throw error
-          await logActivity('C', `${auto ? '🤖自動：' : ''}🔁 マネタイズ不可と判断、企画(B)へ差し戻し（${project?.title ?? projectId}）：${reason}`)
+          if (shelve) {
+            await logActivity('C', `${auto ? '🤖自動：' : ''}マネタイズ不可(通算${setbackCount}回目の差し戻し・却下) — 没案としてアーカイブします（${project?.title ?? projectId}）`)
+          } else {
+            await logActivity('C', `${auto ? '🤖自動：' : ''}🔁 マネタイズ不可と判断、企画(B)へ差し戻し（${project?.title ?? projectId}）：${reason}`)
+          }
           if (review) await logActivity('C', `🔍 Bの確認：${review}`)
         } else {
           const { error } = await sb.from('projects').update({ stage: 'MONEY', notes: { ...project?.notes, money: note, market, reviews: { ...project?.notes?.reviews, C: review } }, scores: { ...project?.scores, monetization: score }, updated_at: nowIso() }).eq('id', projectId)
@@ -515,24 +523,25 @@ function useCompanyState() {
         const project = findProject(projectId)
         if (!project) return
         const historyEntry = { decision, reason, time: timeLabel() }
+        const isSetback = decision === 'REJECTED' || decision === 'NEEDS_REVISION'
+        const setbackCount = (project.approvalHistory || []).filter((h) => h.decision === 'REJECTED' || h.decision === 'NEEDS_REVISION').length + (isSetback ? 1 : 0)
         let nextStage = project.stage
         let log = ''
         if (decision === 'APPROVED') { nextStage = 'DEVELOPMENT'; log = `APPROVED — 開発を開始します（${project.title}）` }
-        else if (decision === 'NEEDS_REVISION') { nextStage = 'IDEA'; log = `NEEDS_REVISION — 企画工程(B)へ差し戻し（${project.title}）` }
         else if (decision === 'HOLD') { nextStage = 'APPROVAL'; log = `HOLD — 現時点では保留（${project.title}）` }
-        else {
-          const rejectedCount = (project.approvalHistory || []).filter((h) => h.decision === 'REJECTED').length + 1
-          if (rejectedCount >= 5) {
-            nextStage = 'SHELVED'
-            log = `REJECTED(${rejectedCount}回目) — 没案としてアーカイブします（${project.title}）`
-          } else {
-            nextStage = 'REJECTED'
-            log = `REJECTED(${rejectedCount}回目)（${project.title}）`
-          }
+        else if (isSetback && setbackCount >= 5) {
+          nextStage = 'SHELVED'
+          log = `${decision}(通算${setbackCount}回目の差し戻し・却下) — 没案としてアーカイブします（${project.title}）`
+        } else if (decision === 'NEEDS_REVISION') {
+          nextStage = 'IDEA'
+          log = `NEEDS_REVISION(通算${setbackCount}回目) — 企画工程(B)へ差し戻し（${project.title}）`
+        } else {
+          nextStage = 'REJECTED'
+          log = `REJECTED(通算${setbackCount}回目)（${project.title}）`
         }
         const { error } = await sb.from('projects').update({
           stage: nextStage, decision: (decision === 'REJECTED' || nextStage === 'SHELVED') ? null : decision,
-          reject_reason: decision === 'REJECTED' ? reason : project.rejectReason,
+          reject_reason: (decision === 'REJECTED' || nextStage === 'SHELVED') ? reason : project.rejectReason,
           approval_history: [...project.approvalHistory, historyEntry], updated_at: nowIso(),
         }).eq('id', projectId)
         if (error) throw error
@@ -980,16 +989,16 @@ function ShelvedArchive({ projects, onReopen, onViewDetail }) {
   if (shelved.length === 0) return null
   return (
     <>
-      <div className="section-heading"><h2>没案</h2><span className="muted" style={{ fontSize: 12.5 }}>責任者に5回却下された案です。プロジェクト数には含まれません</span></div>
+      <div className="section-heading"><h2>没案</h2><span className="muted" style={{ fontSize: 12.5 }}>責任者に通算5回却下・差し戻しされた案です。プロジェクト数には含まれません</span></div>
       <div className="project-grid">
         {shelved.map((p) => {
-          const rejectedCount = (p.approvalHistory || []).filter((h) => h.decision === 'REJECTED').length
+          const setbackCount = (p.approvalHistory || []).filter((h) => h.decision === 'REJECTED' || h.decision === 'NEEDS_REVISION').length
           return (
             <div key={p.id} className="project-card archive-card shelved-card project-card-clickable" onClick={() => onViewDetail(p)}>
               <div className="pc-id">{p.id}</div>
               <h3>{p.title}</h3>
               <div className="reject-reason">{p.rejectReason || '理由未記録'}</div>
-              <div className="pc-status-row"><span className="muted" style={{ fontSize: 12 }}>没案(却下{rejectedCount}回)</span><button className="btn btn-small btn-ghost" onClick={(e) => { e.stopPropagation(); onReopen(p.id) }}>再評価する</button></div>
+              <div className="pc-status-row"><span className="muted" style={{ fontSize: 12 }}>没案(通算{setbackCount}回)</span><button className="btn btn-small btn-ghost" onClick={(e) => { e.stopPropagation(); onReopen(p.id) }}>再評価する</button></div>
             </div>
           )
         })}
