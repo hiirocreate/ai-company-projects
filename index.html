@@ -282,14 +282,16 @@ const { useState, useEffect, useCallback, useRef } = React;
    ・Supabase: Project Settings → Data API(URL) / API Keys(キー)
    ・API_BASE_URL: Cloudflare Workerをデプロイして発行されたURL(例 https://xxxx.yyyy.workers.dev)
    ・API_SHARED_SECRET: API用Workerの環境変数 API_SHARED_SECRET と同じ値を入れる(任意・セキュリティ強化用)
+   ・APPROVAL_THRESHOLD: 責任者(D)がMonetization Scoreを見て承認する際のしきい値(デフォルト85)
 ========================================================= */
-const CONFIG_KEYS = ['SUPABASE_URL', 'SUPABASE_ANON_KEY', 'API_BASE_URL', 'API_SHARED_SECRET']
+const CONFIG_KEYS = ['SUPABASE_URL', 'SUPABASE_ANON_KEY', 'API_BASE_URL', 'API_SHARED_SECRET', 'APPROVAL_THRESHOLD']
 const CONFIG_STORAGE_PREFIX = 'ai_company_config_'
 const DEFAULT_CONFIG = {
   SUPABASE_URL: 'https://emliruckqsvlddzneczk.supabase.co',
   SUPABASE_ANON_KEY: 'sb_publishable_7mi0OmqNKGTnYdGMtfs58Q_CYY_Qvt_',
   API_BASE_URL: 'https://flat-smoke-5a71.h-onoue-test.workers.dev',
   API_SHARED_SECRET: '', // 例: 'my-secret-123'。API Worker側と同じ値にする。空文字なら未使用
+  APPROVAL_THRESHOLD: '85', // Dの承認しきい値(Monetization Score)。この値未満はよほどの根拠がない限り承認しない
 }
 
 function readStoredConfig(key) {
@@ -306,6 +308,7 @@ const SUPABASE_URL = getConfigValue('SUPABASE_URL')
 const SUPABASE_ANON_KEY = getConfigValue('SUPABASE_ANON_KEY')
 const API_BASE_URL = getConfigValue('API_BASE_URL')
 const API_SHARED_SECRET = getConfigValue('API_SHARED_SECRET')
+const APPROVAL_THRESHOLD = Number(getConfigValue('APPROVAL_THRESHOLD')) || 85
 
 const supabaseConfigured =
   SUPABASE_URL.startsWith('http') && !SUPABASE_URL.includes('YOUR-PROJECT') &&
@@ -424,6 +427,7 @@ async function autoAdvanceProject(project, dispatch) {
     planningNote: project.notes.planning, marketNote: project.notes.market, moneyNote: project.notes.money,
     developmentNote: project.notes.development, score: project.scores.monetization,
     revisionReason: employeeKey === 'B' ? getLatestRevisionReason(project) : null,
+    approvalThreshold: APPROVAL_THRESHOLD,
   }
   const { data } = await callAI(employeeKey, ctx)
   if (employeeKey === 'B') {
@@ -1030,6 +1034,7 @@ function SettingsModal({ onClose }) {
     SUPABASE_ANON_KEY: readStoredConfig('SUPABASE_ANON_KEY') ?? SUPABASE_ANON_KEY,
     API_BASE_URL: readStoredConfig('API_BASE_URL') ?? API_BASE_URL,
     API_SHARED_SECRET: readStoredConfig('API_SHARED_SECRET') ?? API_SHARED_SECRET,
+    APPROVAL_THRESHOLD: readStoredConfig('APPROVAL_THRESHOLD') ?? String(APPROVAL_THRESHOLD),
   })
   const update = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }))
 
@@ -1063,9 +1068,14 @@ function SettingsModal({ onClose }) {
         <div className="field"><label>AI用WorkerのURL(API_BASE_URL)</label><input value={form.API_BASE_URL} onChange={update('API_BASE_URL')} /></div>
         <div className="field"><label>共有シークレット(任意・API_SHARED_SECRET)</label><input value={form.API_SHARED_SECRET} onChange={update('API_SHARED_SECRET')} /></div>
         <div className="field">
+          <label>責任者(D)の承認しきい値(Monetization Score)</label>
+          <input type="number" min="0" max="100" value={form.APPROVAL_THRESHOLD} onChange={update('APPROVAL_THRESHOLD')} />
+          <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>この点数未満は、よほど強い根拠がない限りDは承認しません(デフォルト85)。厳しすぎる/緩すぎると感じたらここで調整してください。</div>
+        </div>
+        <div className="field">
           <label>🔒 セキュリティについて</label>
           <div className="muted" style={{ fontSize: 12.5, lineHeight: 1.6 }}>
-            この画面で設定できるのは上の4つ(API側と一致させる必要がある値)のみです。
+            この画面で設定できるのは上の5つ(API側と一致させる必要がある値、および責任者の判断基準)のみです。
             サイト全体のログイン(SITE_PASSWORD)や、APIの呼び出し元制限(ALLOWED_ORIGIN)は、
             それぞれ別のCloudflare Worker自体の設定(Settings → Variables and Secrets)であり、
             この画面(ブラウザのlocalStorage)からは変更できません。ページが読み込まれる前に
@@ -1586,6 +1596,7 @@ function AdvanceModal({ project, dispatch, onClose }) {
         planningNote: project.notes.planning, marketNote: project.notes.market, moneyNote: project.notes.money,
         developmentNote: project.notes.development, score: project.scores.monetization,
         revisionReason: employeeKey === 'B' ? getLatestRevisionReason(project) : null,
+        approvalThreshold: APPROVAL_THRESHOLD,
       }
       const { data, provider } = await callAI(employeeKey, ctx)
       if (employeeKey === 'D') {
